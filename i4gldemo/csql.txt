@@ -1,0 +1,97 @@
+#	CSQL.txt  -  sqsl interpreter messages, eng
+#
+#	The 4glWorks application framework
+#	The Structured Query Scripting Language
+#	Copyright (C) 1992-2016 Marco Greco (marco@4glworks.com)
+#
+#	Initial release: Mar 03
+#	Current release: May 16
+#
+#	This library is free software; you can redistribute it and/or
+#	modify it under the terms of the GNU Lesser General Public
+#	License as published by the Free Software Foundation; either
+#	version 2.1 of the License, or (at your option) any later version.
+#
+#	This library is distributed in the hope that it will be useful,
+#	but WITHOUT ANY WARRANTY; without even the implied warranty of
+#	MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+#	Lesser General Public License for more details.
+#
+#	You should have received a copy of the GNU Lesser General Public
+#	License along with this library; if not, write to the Free Software
+#	Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
+#
+# 100 is reserved for SQLNOTFOUND
+100	No more rows or no rows found
+101	Row processed: %i
+102	Statement interrupted by user
+# 103 is reserved to signal an EXIT clause
+#
+150	Unbalanced quote
+151	Unbalanced comment
+152	Possible statement injection from expansion
+#
+200	Out of memory
+201	Invalid statement identifier
+202	Statement has no associated cursor
+203	Statement is not executable
+204	Not enough columns selected, or column id out of range
+205	Invalid variable handle
+#
+300	Syntax error in expansion facility
+301	Cannot open window while not in form mode
+302	Unbalanced expansion or comment
+303	Syntax error while evaluation expansion expression
+304	No expansion action specified
+305	Expansion returned no data
+#
+400	Syntax error
+401	Datetime or interval incompatible with operation
+402	Invalid datetime or interval qualifier
+410	Cannot specify output format in this context
+411	Null or empty delimiter or escape
+412	Invalid pattern specifier
+413	Autocommit not a positive integer
+414	Block size not a positive integer
+415	Binary format cannot be used against the default output stream
+416	Input string does not match pattern;
+417	Value out of range
+421	Division by 0
+422	Invalid string subscript
+423	Hash used where scalar expected
+424	Scalar used where hash expected
+425	Hash cannot be expanded as it contains hashes
+426	Mismatching assignment list
+427	Non existent column
+430	Unterminated statement block
+#
+500	Invalid argument passed to builtin function
+501	Invalid number of arguments passed to builtin function
+502	Function cannot be used in this context
+503	Invalid argument passed to dbinfo
+504	Function returned unexpected number of values
+505	You are not allowed to use fork
+506	Regular expression syntax error
+#
+600	Invalid connection identifier
+601	Duplicate connection identifier
+602	No such shared library, or not a valid source
+603	No such object in shared library
+604	Invalid cursor name
+605	Cursor already in use
+606	No more cursors
+610	Not a valid input stream
+611	Not a valid output stream
+612	Mismatching input and output field count
+
+620	Statement in use
+621	Statement prepared with destination variables
+622	Statement prepared with placeholder variables
+623	Statement prepared with FORMAT clause
+624	Statement prepared with AGGREGATE clause
+
+630	Statement has no reject file
+#
+997	Feature not linked in
+998	DLL storage full
+999	Not implemented

@@ -1,0 +1,968 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+<HEAD>
+   <TITLE>Structured Query Scripting Language Reference</TITLE>
+   <META NAME="author" CONTENT="Marco Greco">
+   <META NAME="generator" CONTENT="Hand assembled in Catania by expert WebMakers from automatically generated parts">
+</HEAD>
+<BODY BGCOLOR=#FFFFFF>
+<STYLE type="text/css">
+TD {vertical-align: top;}
+</STYLE>
+<A NAME="FGWLANGREF">
+<H1><HR><CENTER><B>Structured Query Scripting Language Reference</CENTER></B><HR></H1>
+
+<P>SQSL is essentially an augmented SQL with a number of feautures borrowed
+from various sources among which awk, sh, perl and x4GL.
+The actual interpreter is in fact implemented as an SQL preinterpreter: as such it
+will pass to the engine in use anything that it cannot handle directly and that
+it does not readily recognise as incorrect. This makes it somewhat hard to
+define the entire syntax of the language, as it is dependent on the engine the
+interpreter is connected to. We will therefore describe the features above and
+beyond SQL:</P>
+
+<UL>
+<LI>Statements
+    <UL>
+    <LI><A HREF="#stmt_connection">Connection related statements</A></LI>
+    <LI><A HREF="#stmt_control">Control statements</A></LI>
+    <LI><A HREF="#stmt_sql">SQL statements</A></LI>
+    <LI><A HREF="#stmt_simple">Simple statements</A></LI>
+    </UL></LI>
+<LI>Clauses
+    <UL>
+    <LI><A HREF="#clause_expr">Expressions</A></LI>
+    <LI><A HREF="#clause_assignment">Assignments</A></LI>
+    <LI><A HREF="#clause_pattern">Pattern clause</A></LI>
+    <LI><A HREF="#clause_using">Using clause</A></LI>
+    <LI><A HREF="#clause_conn">Connection clause</A></LI>
+    <LI><A HREF="#clause_aggregate">Aggregate clause</A></LI>
+    <LI><A HREF="#clause_redir">SQL redirection clause</A></LI>
+    <LI><A HREF="#clause_storage">Storage clause</A></LI>
+    <LI><A HREF="#clause_format">Format clause</A></LI>
+    </UL></LI>
+    <LI><A HREF="#syntax_variations">Syntax Variations</A></LI>
+<LI><A HREF="#FGWEXPREF">Expansion facility</A></LI>
+</UL>
+
+<P><A NAME="stmt_connection"><H3>Connection related statements</A><HR></H3>
+<PRE>CONNECT TO <A HREF="#clause_expr">&lt;expression&gt;</A>
+  [ SOURCE <A HREF="#clause_identifier">&lt;source name&gt;</A> ]
+  [ AS <A HREF="#clause_expr">&lt;expression&gt;</A> ]
+  [ USER <A HREF="#clause_expr">&lt;expression&gt;</A>
+    USING <A HREF="#clause_expr">&lt;expression&gt;</A> ]
+  [ &lt;source specific options&gt; ];</PRE>
+ 
+<PRE>DISCONNECT <A HREF="#clause_expr">&lt;expression&gt;</A>;</PRE>
+ 
+<PRE>SET CONNECTION [ DEFAULT [ SOURCE <A HREF="#clause_identifier">&lt;source name&gt;</A> ] | <A HREF="#clause_expr">&lt;expression&gt;</A> ];</PRE>
+ 
+<P>Sources are implemented as shared objects. Currently there are two sources
+for Informix engines, three for DB2 and one for SolidDB.</P>
+<P>The interpreter sports the concept of <CODE>'current source'</CODE>, which is
+the source selected by the latest <CODE>CONNECT</CODE> statement explicitely
+naming a source. Further <CODE>CONNECT</CODE> statements not specifically 
+selecting a source will use the current source.</P>
+
+<P>Connections are named, which means that no two connections can share the
+same name, even when they are related to different sources. Connections can
+be renamed via the <CODE>AS</CODE> clause, which can be used to allow connections
+to two identically named identifiers residing on two different sources.
+Bear in mind that not all database engines support connection synonyms, which
+means that, even renaming connections, SQSL cannot help getting past the
+vendor's inability to connect multiple times from the same client to the same
+database identifier. <A HREF=#clause_function><CODE>Fork</CODE></A> a child
+instead.</P>
+
+<P>Certain database engines also sport the concept of a <CODE>DEFAULT</CODE>,
+unnamed, connection. This is a connection that gets automatically established
+upon receiving any sql statement. Default connections, if supported by the
+source, cannot be explicitely connected to or disconnected, but they can be
+set as current.</P>
+
+<P>The initial current SQSL source is the IFXM one. The initial connection is
+the IFMX default connection, which is not physically established until a
+statement is passed to the engine.</P>
+
+<P><A NAME="stmt_control"><H3>Control statements</A><HR></H3>
+<PRE>FOREACH [ [ [ [ <A HREF="#clause_identifier">&lt;identifier&gt;</A> CURSOR [ WITH HOLD ] FOR | WITH HOLD ] ] &lt;select statement&gt; |
+            &lt;execute procedure&gt; ] [ <A HREF="#clause_using">&lt;using clause&gt;</A> ] [ <A HREF="#clause_conn">&lt;connection clause&gt;</A> ] |
+          EXECUTE <A HREF="#clause_expr">&lt;expression&gt;</A> [ <A HREF="#clause_using">&lt;using clause&gt;</A> ] |
+          [ INPUT FROM <A HREF="#clause_expr">&lt;expression&gt;</A> |
+            READ FROM <A HREF="#clause_expr">&lt;expression&gt;</A> |
+            PIPE FROM <A HREF="#clause_expr">&lt;expression&gt;</A> ] <A HREF="#clause_pattern">&lt;pattern clause&gt;</A> ]
+    [ <A HREF="#clause_aggregate">&lt;aggregate clause&gt;</A> ] [ <A HREF="#clause_storage">&lt;storage clause&gt;</A> ] [ <A HREF="#clause_format">&lt;format clause&gt;</A> ];
+    [ &lt;statement list&gt; | BREAK | CONTINUE ];
+END FOREACH;</PRE>
+
+<PRE>CLONE <A HREF="#clause_expr">&lt;expression&gt;</A> INTO <A HREF="#clause_variable">&lt;variable&gt;</A>, <A HREF="#clause_variable">&lt;variable&gt;</A>;
+    [ &lt;statement list&gt; | BREAK | CONTINUE ];
+[ PARENT;
+    [ &lt;statement list&gt; | BREAK | CONTINUE ]; ]
+END CLONE;</PRE>
+
+<PRE>WAIT FOR <A HREF="#clause_exprlist">&lt;expression list&gt;</A> INTO <A HREF="#clause_variable">&lt;variable&gt;</A>, <A HREF="#clause_variable">&lt;variable&gt;</A>;
+    [ &lt;statement list&gt; | BREAK | CONTINUE ];
+END WAIT;</PRE>
+
+<PRE>FOR <A HREF="#clause_variable">&lt;variable&gt;</A> IN <A HREF="#clause_exprlist">&lt;expression list&gt;</A>;
+    [ &lt;statement list&gt; | BREAK | CONTINUE ];
+END FOR;</PRE>
+
+<PRE>WHILE <A HREF="#clause_expr">&lt;expression&gt;</A>;
+    [ &lt;statement list&gt; | BREAK | CONTINUE ];
+END WHILE;</PRE>
+
+<PRE>IF <A HREF="#clause_expr">&lt;expression&gt;</A>;
+    &lt;statement list&gt;
+[ ELSE IF <A HREF="#clause_expr">&lt;expression&gt;</A>;
+    &lt;statement list&gt;
+... ]
+[ ELSE;
+    &lt;statement list&gt; ]
+END IF;</PRE>
+
+<PRE>BEGIN IMMEDIATE;
+    &lt;statement list&gt;
+END IMMEDIATE;</PRE>
+
+<PRE>BEGIN COMPOUND;
+    &lt;statement list&gt;
+END COMPOUND [ <A HREF="#clause_conn">&lt;connection clause&gt;</A> ];</PRE>
+
+<P>Few surprises on how the control statements work:
+<UL>
+<LI>The <CODE>CLONE</CODE> statement forks
+    <CODE><A HREF=#clause_expr>&lt;expression&gt;</A></CODE> children, each
+    executing the same code up to the <CODE>PARENT</CODE> clause
+    (or the end of the loop, if none is specified). At each iteration, the
+    current child number and its process id are stored in the two target
+    variables respectively. The <CODE>PARENT</CODE> clause can be used to
+    specify parent actions for each spawned child, like error checking.<BR>
+    As you would expect, the number of children forked must cast to an integer
+    and must be greater than zero. There is currently a limit of 128 children
+    forked by any one statement.</LI>
+<LI>The <CODE>WAIT FOR</CODE> statement waits for each child whose process id
+    is specified in the
+    <CODE><A HREF=#clause_exprlist>&lt;expression list&gt;</A></CODE>.
+    At each iteration the return code and process id are stored in the two
+    target variables.</LI>
+<LI><CODE>COMPOUND</CODE> and <CODE>IMMEDIATE</CODE> code blocks skip SQSL
+    parsing altogether and just pass the enclosed statements to the engine,
+    the former as a single block, the latter one at a time.</LI>
+<LI><CODE>WHILE</CODE> loops reevaluate <A HREF="#FGWEXPREF">expansions</A>
+    that are part of the <A HREF="#clause_expr">expression clause</A>
+    at every iteration</LI>
+<LI><CODE>FOR</CODE>'s <A HREF="#clause_expr">expression list</A> is
+   determined at the beginning of the loop and does not change with
+   subsequent iterations, as in the bourne shell or awk, but unlike perl's
+   <CODE>FOREACH</CODE></LI>
+<LI>Unlike the korn shell, awk or perl, it is perfectly fine to have
+    <A HREF="#clause_variable">hash elements</A> as <CODE>FOR</CODE>,
+    <CODE>FOREACH</CODE>, <CODE>CLONE</CODE> and <CODE>WAIT FOR</CODE> loops
+    target variables. These are determined at each iteration, so be
+    mindful of side effects that may be introduced by the
+    <A HREF=#clause_aggregate>aggregate clause</A> or the code inside the
+    loop blocks.</LI>
+<LI>loops can be terminated through the <CODE>BREAK</CODE> statement, or their
+    reminder be skipped with the <CODE>CONTINUE</CODE> statement.</LI>
+
+</UL></P>
+
+<P><A NAME="stmt_sql"><H3>SQL statements</A><HR></H3>
+<PRE>[ &lt;select statement&gt; | &lt;execute procedure&gt; ]
+   [ <A HREF="#clause_using">&lt;using clause&gt;</A> ]
+   [ <A HREF="#clause_conn">&lt;connection clause&gt;</A> ]
+   [ <A HREF="#clause_aggregate">&lt;aggregate clause&gt;</A> ]
+   [ [ <A HREF="#clause_storage">&lt;storage clause&gt;</A> ] [ <A HREF="#clause_format">&lt;format clause&gt;</A> ] |
+     [ <A HREF="#clause_redir">&lt;redirection clause&gt;</A> ] ];</PRE>
+
+<PRE>[ &lt;insert statement&gt; | &lt;delete statement&gt | &lt;update statement&gt; | &lt;select into temp&gt; ]
+   [ <A HREF="#clause_using">&lt;using clause&gt;</A> ]
+   [ <A HREF="#clause_conn">&lt;connection clause&gt;</A> ];</PRE>
+
+<PRE>&lt;other SQL&gt;
+   [ <A HREF="#clause_conn">&lt;connection clause&gt;</A> ];</PRE>
+
+<P>By and large you are expected to be familiar with the statements above, 
+with the exception, that is, of the interesting stuff: all those little extra
+clauses. These are described below, each in its own little section.</P>
+
+<P><A NAME="stmt_simple"><H3>Simple statements</A><HR></H3>
+<PRE>LET <A HREF="#clause_assignment">&lt;assignment clause&gt;</A>;</PRE>
+
+<PRE>STORE <A HREF="#clause_exprlist">&lt;expression list&gt;</A> INTO <A HREF="#clause_variable">&lt;variable&gt;</A> [<A HREF="#clause_cast">&lt;type cast&gt;</A>]
+   [, <A HREF="#clause_variable">&lt;variable&gt;</A> [<A HREF="#clause_cast">&lt;type cast&gt;</A>]... ];</PRE>
+
+<PRE>DISPOSE <A HREF="#clause_variable">&lt;variable&gt;</A>;</PRE>
+
+<PRE>INVOKE <A HREF="#clause_function">&lt;function&gt;</A>
+   [ ( <A HREF="#clause_exprlist">&lt;expression list&gt;</A> ) ] 
+   [ RETURNING <A HREF="#clause_variable">&lt;variable&gt;</A> [<A HREF="#clause_cast">&lt;type cast&gt;</A>]
+      [, <A HREF="#clause_variable">&lt;variable&gt;</A> [<A HREF="#clause_cast">&lt;type cast&gt;</A>]... ] ];</PRE>
+
+<PRE>DISPLAY <A HREF="#clause_exprlist ">&lt;expression list&gt;</A> [ <A HREF="#clause_format">&lt;format clause&gt;</A> ];</PRE>
+
+<PRE>APPEND TO [ <A HREF="#clause_expr">&lt;expression&gt;</A> | DEFAULT ];</PRE>
+
+<PRE>[ OUTPUT | WRITE | PIPE ] TO <A HREF="#clause_expr">&lt;expression&gt;</A>;</PRE>
+
+<PRE>OUTPUT FORMAT [ PLAIN | HTML ];</PRE>
+
+<PRE>OUTPUT WIDTH <A HREF="#clause_expr">&lt;expression&gt;</A>;</PRE>
+
+<PRE>[ INPUT | READ | PIPE ] FROM <A HREF="#clause_expr">&lt;expression&gt;</A>
+   [ <A HREF="#clause_pattern">&lt;pattern clause&gt;</A> ]
+   [ <A HREF="#clause_aggregate">&lt;aggregate clause&gt;</A> ]
+   [ [ <A HREF="#clause_storage">&lt;storage clause&gt;</A> ] [ <A HREF="#clause_format">&lt;format clause&gt;</A> ] |
+     [ <A HREF="#clause_redir">&lt;redirection clause&gt;</A> ] ];</PRE>
+
+<PRE>PREPARE <A HREF="#clause_variable">&lt;variable&gt;</A> FROM &lt;sql statement&gt;
+   [ <A HREF="#clause_using">&lt;using clause&gt;</A> ]
+   [ <A HREF="#clause_conn">&lt;connection clause&gt;</A> ]
+   [ <A HREF="#clause_aggregate">&lt;aggregate clause&gt;</A> ]
+   [ <A HREF="#clause_storage">&lt;storage clause&gt;</A> ]
+   [ <A HREF="#clause_format">&lt;format clause&gt;</A> ];</PRE>
+
+<PRE>EXECUTE <A HREF="#clause_expr">&lt;expression&gt;</A>
+   [ <A HREF="#clause_using">&lt;using clause&gt;</A> ]
+   [ <A HREF="#clause_conn">&lt;connection clause&gt;</A> ]
+   [ <A HREF="#clause_aggregate">&lt;aggregate clause&gt;</A> ]
+   [ [ <A HREF="#clause_storage">&lt;storage clause&gt;</A> ] [ <A HREF="#clause_format">&lt;format clause&gt;</A> ] |
+     [ <A HREF="#clause_redir">&lt;redirection clause&gt;</A> ] ];</PRE>
+
+<PRE>FREE <A HREF="#clause_expr">&lt;expression&gt;</A>;</PRE>
+
+<PRE>EXIT [ <A HREF="#clause_expr">&lt;expression&gt;</A> ];</PRE>
+
+<PRE>WHENEVER ERROR [ CONTINUE | STOP ];</PRE>
+
+<PRE>ERROR LOG TO <A HREF="#clause_expr">&lt;expression&gt;</A>;</PRE>
+
+<P><CODE>LET</CODE> and <CODE>DISPLAY</CODE> are self explatory.
+<CODE>STORE</CODE> performs multiple assignments.  The
+only issue worth noting is that while the <A HREF="#FGWEXPREF">expansion
+facility</A> on its own is already capable of fairly unpredictable
+side effects, couple it with the <CODE>LET</CODE> statements and things
+could become pretty nasty.</P>
+
+<P><CODE>INVOKE</CODE> is the equivalent of x4GL's <CODE>CALL</CODE>
+(<CODE>CALL</CODE> is used to execute procedures in many SQL implementations,
+hence the use of <CODE>INVOKE</CODE>)</P>
+
+<P><CODE>DISPOSE</CODE> physically obliterates items from the
+<A HREF="#clause_variable">storage space</A>. You can <CODE>DISPOSE</CODE> of
+anything: scalars, hashes, or even hash subsets.</P>
+
+<P><CODE>APPEND</CODE>, <CODE>OUTPUT</CODE>, <CODE>WRITE</CODE> and
+<CODE>PIPE TO</CODE> all instruct the interpreter to redirect its output.
+  The expression passed to <CODE>APPEND</CODE> and <CODE>OUTPUT</CODE> is a
+  name of a file (<CODE>OUTPUT</CODE> will truncate it, <CODE>APPEND</CODE>
+  will add to it), while <CODE>PIPE</CODE>, as you would expect, pipes
+  the output to a child process.<BR>
+  In case of failure, the output is redirected to the default stream, and
+  the reason of the failure can be inspected via <CODE>DBINFO("errno")</CODE>.<BR>
+  <CODE>APPEND TO DEFAULT</CODE> causes the new output generated by the
+  interpreter to be added to the default stream, which in the case of the demo
+  application is the viewer display, but can be defined to be a
+  <A HREF="4wrcsqll.htm#sql_execute2">file or pipe</A>.<BR>
+  <CODE>WRITE</CODE> writes to a stream previously obtained with
+  <CODE>FOPEN()</CODE> or <CODE>POPEN()</CODE>. Upon switching to a different
+  output, the stream is not closed.</P>
+
+<P>Conversely, <CODE>INPUT</CODE>, <CODE>READ</CODE> and <CODE>PIPE FROM</CODE>
+read data from a file, a stream, or a pipe</P>
+<P>Streams can be opened and closed via the <CODE>FOPEN</CODE>, <CODE>POPEN</CODE>
+and <CODE>SCLOSE</CODE> functions. Custom streams can even be created via
+skillfull combinations of the <A HREF="4wrcfioc.htm#4wrudio">arbitrary stream
+interface</A> and the <A HREF="#clause_ext_function">external function API</A>.</P>
+
+<P><CODE>PREPARE</CODE>, <CODE>EXECUTE</CODE> and <CODE>FREE</CODE> have not
+been inplemented in aid to dynamic sql (use the <A HREF="#FGWEXPREF">expansion
+facility</A> instead), but rather to improve performance of sql repeatedly
+used.</P>
+<P>Both the <CODE>PREPARE</CODE> and <CODE>EXECUTE</CODE> statements offer
+<CODE><A HREF=#clause_using>USING</A></CODE>,
+<CODE><A HREF=#clause_aggregate>AGGREGATE</A></CODE> and
+<CODE><A HREF=#clause_storage>INTO</A></CODE> clauses, however with the former
+placeholders, aggregates and storage are determined once and for all at
+prepare time (plus: it's fast(er)), while the latter allows multiple executions
+of the same statement using different placeholders agregates and targets (plus:
+it's flexible).</P>
+<P>Be aware, however, that in both cases expressions will be evaluated at
+execution time, so watch out for those pesky side effects.</P>
+
+<P><CODE>EXIT</CODE> behaves very much like x4GL's or bourne shell's
+  <CODE>exit</CODE> however, note that it has different meanings depending
+  whether the process is the result of a <CODE>FORK</CODE> (the process
+  terminates) or not (the script terminates and the process resumes normal
+  operation).</P>
+
+<P><A NAME="clause_identifier"><H3>Identifiers</A><HR></H3></P>
+<P>Identifiers start with an alphabetic character and continue with alphabetic characters, digits
+   or underscores. Indentifiers are not case sensitive.<BR>
+   A larger character set is allowed and case sensitivenes is enforced when the identifier is enclosed in
+   double quotes. Double quotes only have this special meaning when the environmetal variable
+   <CODE>DELIMIDENT</CODE> is set, viceversa they just introduce string constants.</P>
+
+<P><A NAME="clause_variable"><H3>Variables</A><HR></H3></P>
+<P>Variables are dynamic and typed, ie they spring into existence when
+   first referenced and change type at every new assignment (either by means
+   the <A HREF="#stmt_simple">simple statements</A> or the
+   <A HREF="#clause_storage">storage clause</A>) as the case needs be.</P>
+<P>Variables come in two flavours: scalars and hashes. Hashes elements can
+   too be scalar or hashes, thereby allowing jagged hashes.<BR>
+   Hashes and scalars share the same namespace, which means that you are not
+   allowed to use a hash where a scalar is expected, nor can you try to make
+   a hash a scalar by assigning to it a scalar value
+   (<A HREF="#stmt_simple"><CODE>DISPOSE</CODE></A> is your friend).</P>
+<P>Hashes are subscripted with an expression list enclosed in round parenthesys:</P>
+<P><CODE><A HREF="#clause_identifier">&lt;variable&gt;</A>(<A HREF="#clause_expression">&lt;expression&gt;</A> [, <A HREF="#clause_expr">&lt;expression&gt;</A>...])</CODE></P>
+
+<P><A NAME="clause_expr"><H3>Expressions</A><HR></H3></P>
+<P>Just like in any other language, expressions are used to aggregate data. They fall broadly in the
+following categories
+<UL>
+<LI><H4>Constants</H4>
+    <TABLE>
+    <TR><TD>Integer constants</TD><TD><CODE>[0..9]+</CODE></TD></TR>
+    <TR><TD>Float or decimal constants</TD><TD><CODE>[0..9]+.[0..9]+[E[+|-][0..9]+]</TD></TR>
+    <TR><TD>String constants</TD><TD><CODE>'&lt;character&gt;...'</CODE> or, if
+	<CODE>DELIMIDENT</CODE> is not set, <CODE>"&lt;character&gt;..."</CODE></TD></TR>
+    <TR><TD><CODE>NULL</CODE></TD></TR>
+    </TABLE></LI>
+<LI><H4><A HREF="#clause_variable">Variables</A></H4></LI>
+<LI><H4>String Expressions</H4>
+    <TABLE>
+    <TR><TD><CODE><A HREF="#clause_expr">&lt;expression&gt;</A> CLIPPED</CODE></TD>
+    <TD>The <CODE>CLIPPED</CODE> postfix operator removes trailing blanks from the operand.</P></LI>
+    <TR><TD><CODE><A HREF="#clause_expr">&lt;expression&gt;</A> SPACES</CODE></TD>
+    <TD>The <CODE>SPACES</CODE> postfix operator generates a string of spaces long as specified in
+       the operand, taken as an integer expression.</TD></TR>
+    <TR><TD><CODE><A HREF="#clause_expr">&lt;expression&gt;</A> PICTURE
+        <A HREF="#clause_expr">&lt;expression&gt;</A></CODE></TD>
+    <TD>The <CODE>PICTURE</CODE> infix operator takes an expression and a string expression and returns
+       a string representing the first expression formatted according to the
+       <A HREF="#clause_picture">specification</A> of the second expression.</TD></TR>
+    <TR><TD><CODE><A HREF="#clause_variable">&lt;variable&gt;</A>\[<A HREF="#clause_expr">&lt;expression&gt;</A>
+        [, <A HREF="#clause_expr">&lt;expression&gt;</A>]\]</CODE></TD>
+     <TD>The <CODE>[...]</CODE> ternary operator returns a substring of the first operand starting at
+    the character position indicated by the second and ending at the third.</TD></TR>
+    </TABLE>
+<LI><H4>Interval Expressions</H4>
+    <TABLE>
+    <TR><TD><CODE><A HREF="#clause_expr">&lt;expression&gt;</A> UNITS
+     [YEAR|MONTH|DAY|HOUR|MINUTE|SECOND|FRACTION]</CODE></TD></TR>
+    </TABLE></LI>
+<A NAME="clause_cast"></A>
+<LI><H4>Expression casting</H4>
+    <TABLE>
+    <TR><TD><CODE><A HREF="#clause_expr">&lt;expression&gt;</A>::[INT[EGER]|FLOAT|DEC[IMAL]|MONEY|DATE|DATETIME
+    [<A HREF="#clause_qual">&lt;qualifier&gt;</A>]|INTERVAL
+    [<A HREF="#clause_qual">&lt;qualifier&gt;</A>]|STRING|BYTE]</CODE></TD>
+    <TD>Currently only <CODE>NULL</CODE> expressions can be cast to <CODE>BYTE</CODE>.</TD></TR>
+    </TABLE></LI>
+<LI><H4>Arithmetic Expressions</H4>
+    <TABLE>
+    <TR><TD><CODE><A HREF="#clause_expr">&lt;expression&gt;</A> [+|-|*|/]
+	  <A HREF="#clause_expr">&lt;expression&gt;</A></CODE></TD>
+    <TD>Datetime and interval arithmetics extend datetime and interval expression qualifiers as
+	necessary.</TD></TR>
+    </TABLE></LI>
+<LI><H4>Boolean Expressions</H4>
+    <TABLE>
+    <TR><TD><CODE><A HREF="#clause_expr">&lt;expression&gt;</A> [=|&lt;&gt;|&gt;|&gt;=|&lt;|&lt;=]
+	  <A HREF="#clause_expr">&lt;expression&gt;</A></CODE></TD></TR>
+    <TR><TD><CODE><A HREF="#clause_expr">&lt;boolean expression&gt;</A> [AND|OR]
+	  <A HREF="#clause_expr">&lt;boolean expression&gt;</A></CODE></TD></TR>
+    <TR><TD><CODE>NOT <A HREF="#clause_expr">&lt;boolean expression&gt;</A></CODE></TD></TR>
+    <TR><TD><CODE><A HREF="#clause_expr">&lt;expression&gt;</A> [NOT] IN
+	(<A HREF="#clause_exprlist">&lt;expression list&gt;</A>)</CODE></TD></TR>
+    <TR><TD><CODE><A HREF="#clause_expr">&lt;expression&gt;</A> [NOT] BETWEEN
+	<A HREF="#clause_expr">&lt;expression&gt;</A> AND
+	<A HREF="#clause_expr">&lt;expression&gt;</A></CODE></TD></TR>
+    <TR><TD><CODE><A HREF="#clause_expr">&lt;expression&gt;</A> [NOT] LIKE
+	<A HREF="#clause_expr">&lt;string expression&gt;</A> [ESCAPE
+	<A HREF="#clause_expr">&lt;string expression&gt;</A>]</CODE></TD></TR>
+    <TR><TD><CODE><A HREF="#clause_expr">&lt;expression&gt;</A> [NOT] MATCHES
+	<A HREF="#clause_expr">&lt;string expression&gt;</A> [ESCAPE
+	<A HREF="#clause_expr">&lt;string expression&gt;</A>]</CODE></TD></TR>
+    <TR><TD><CODE><A HREF="#clause_expr">&lt;expression&gt;</A> [NOT] REGEXP LIKE
+	<A HREF="#clause_expr">&lt;string expression&gt;</A></CODE></TD></TR>
+    <TR><TD><CODE><A HREF="#clause_expr">&lt;expression&gt;</A> IS [NOT] NULL</CODE></TD></TR>
+    </TABLE></LI>
+<LI><H4>Functions</H4>
+    <TABLE>
+    <TR><TD><CODE><A HREF="#clause_function">&lt;function&gt;</A>
+	  [(<A HREF="#clause_exprlist">&lt;expression list&gt;</A>)]</CODE></TD></TR>
+    </TABLE></LI>
+<LI><H4>Conditional Expressions</H4>
+    <TABLE>
+    <TR><TD><CODE>CASE <A HREF="#clause_expr">&lt;expression&gt;</A>
+	    WHEN <A HREF="#clause_expr">&lt;expression&gt;</A>
+	    THEN <A HREF="#clause_expr">&lt;expression&gt;</A> [...]
+	    [ELSE <A HREF="#clause_expr">&lt;expression&gt;</A>] END</CODE></TD></TR>
+    <TR><TD><CODE>CASE WHEN <A HREF="#clause_expr">&lt;boolean expression&gt;</A>
+	    THEN <A HREF="#clause_expr">&lt;expression&gt;</A> [...]
+	    [ELSE <A HREF="#clause_expr">&lt;expression&gt;</A>] END</CODE></TD></TR>
+    </TABLE></LI>
+<LI><H4>Expression grouping</H4>
+    <CODE>(<A HREF="#clause_expr">&lt;expression&gt;</A>)</CODE></LI>
+</UL></P>
+
+<P><A NAME="clause_exprlist"><H3>Expression lists</A><HR></H3></P>
+<PRE>[ <A HREF="#clause_expr">&lt;expression&gt;</A> |
+  <A HREF="#clause_expr">&lt;expression&gt;</A> <CODE>TO</CODE> <A HREF="#clause_expr">&lt;expression&gt;</A> |
+  <A HREF="#clause_variable">&lt;variable&gt;</A><CODE>.*</CODE> ] |
+  <A HREF="#clause_variable">&lt;variable&gt;</A><CODE>.(<A HREF="#clause_exprlist">&lt;expression list&gt;</A>)</CODE> ] |
+  SPLIT(<A HREF="#clause_exprlist">&lt;expression list&gt;</A>)] <A HREF="#clause_pattern">&lt;pattern clause&gt;</A> ] [, ... ] |
+  DISPLAYLABELS[.(<A HREF="#clause_exprlist">&lt;expression list&gt;</A>)]
+  COLUMNS[.(<A HREF="#clause_exprlist">&lt;expression list&gt;</A>)]
+]</PRE>
+<P>Expression lists can include expanded hashes (denoted by the hash name 
+followed by <CODE>.*</CODE> or
+<CODE>.(<A HREF="#clause_exprlist">&lt;expression list&gt;</A>)</CODE>, when
+only a subset of a hash is required), and integer range expressions.</P>
+<P>The <CODE>DISPLAYLABELS</CODE> and <CODE>COLUMNS</CODE> hash functions can be used whenever there is
+an active statements to return a list of column names, if supported by the current source.</P>
+
+<P><A NAME="clause_function"><H3>Functions</A><HR></H3></P>
+<P>SQSL offers a range of predefined functions. <A HREF="#clause_identifier">Identifiers</A>
+   representing function names are in fact reserved words.</P>
+<P><A NAME="clause_ext_function">An API to implement external functions is provided. External functions are
+   referenced as <CODE><A HREF="#clause_identifier">&lt;library
+   name&gt;</A>:<A HREF="#clause_identifier">&lt;function name&gt;</A></CODE>.<BR>
+   The API can be used to implement functions that open arbitrary data streams.</P>
+<P>Parameters are passed to functions via an optional <A HREF="#clause_exprlist">expression list;</A>
+enclosed in round parenthesys.</P>
+<P>The following classes of functions are on offer:</P>
+<UL>
+<LI><H4>Algebraic, exponential, logarithmic and trigonometric</H4>
+    <TABLE>
+    <TR><TD><CODE>ABS(<A HREF="#clause_expr">&lt;numeric expression&gt;</A>)</CODE></TD></TR>
+    <TR><TD><CODE>ACOS(<A HREF="#clause_expr">&lt;numeric expression&gt;</A>)</CODE></TD></TR>
+    <TR><TD><CODE>ASIN(<A HREF="#clause_expr">&lt;numeric expression&gt;</A>)</CODE></TD></TR>
+    <TR><TD><CODE>ATAN(<A HREF="#clause_expr">&lt;numeric expression&gt;</A>)</CODE></TD></TR>
+    <TR><TD><CODE>ATAN2(<A HREF="#clause_expr">&lt;numeric expression&gt;</A>,
+		    <A HREF="#clause_expr">&lt;numeric expression&gt;</A>)</CODE></TD></TR>
+    <TR><TD><CODE>COS(<A HREF="#clause_expr">&lt;numeric expression&gt;</A>)</CODE></TD></TR>
+    <TR><TD><CODE>EXP(<A HREF="#clause_expr">&lt;numeric expression&gt;</A>)</CODE></TD></TR>
+    <TR><TD><CODE>LOG10(<A HREF="#clause_expr">&lt;numeric expression&gt;</A>)</CODE></TD></TR>
+    <TR><TD><CODE>LOGN(<A HREF="#clause_expr">&lt;numeric expression&gt;</A>)</CODE></TD></TR>
+    <TR><TD><CODE>MOD(<A HREF="#clause_expr">&lt;integer expression&gt;</A>,
+	            <A HREF="#clause_expr">&lt;integer expression&gt;</A>)</CODE></TD></TR>
+    <TR><TD><CODE>POW(<A HREF="#clause_expr">&lt;numeric expression&gt;</A>,
+	            <A HREF="#clause_expr">&lt;numeric expression&gt;</A>)</CODE></TD></TR>
+    <TR><TD><CODE>ROOT(<A HREF="#clause_expr">&lt;numeric expression&gt;</A>,
+	            <A HREF="#clause_expr">&lt;numeric expression&gt;</A>)</CODE></TD></TR>
+    <TR><TD><CODE>ROUND(<A HREF="#clause_expr">&lt;numeric expression&gt;</A>[,
+	            <A HREF="#clause_expr">&lt;numeric expression&gt;</A>])</CODE></TD></TR>
+    <TR><TD><CODE>SIN(<A HREF="#clause_expr">&lt;numeric expression&gt;</A>)</CODE></TD></TR>
+    <TR><TD><CODE>SQRT(<A HREF="#clause_expr">&lt;numeric expression&gt;</A>)</CODE></TD></TR>
+    <TR><TD><CODE>TAN(<A HREF="#clause_expr">&lt;numeric expression&gt;</A>)</CODE></TD></TR>
+    <TR><TD><CODE>TRUNC(<A HREF="#clause_expr">&lt;numeric expression&gt;</A>[,
+	            <A HREF="#clause_expr">&lt;numeric expression&gt;</A>])</CODE></TD></TR>
+    </TABLE></LI>
+<LI><H4>Date, datetime and interval</H4>
+    <TABLE>
+    <TR><TD><CODE>CURRENT [<A HREF="#clause_qual">&lt;qualifier&gt;</A>]</CODE></TD>
+	<TD>Returns the current timestamp on the client machine. There is no guarantee that this
+	    matches what returned by the connected engines.</TD></TR>
+    <TR><TD><CODE>DATE(<A HREF="#clause_expr">&lt;expression&gt;</A> [,
+	      <A HREF="#clause_expr">&lt;string expression&gt;</A>])</CODE></TD>
+	<TD>Converts the first argument to a date. The optional second argument specifies
+	    a <A HREF="#clause_picture">pictorial representation</A> of the input data. If this is
+	    not set, the environmental variable <CODE>DBDATE</CODE> is checked for date format.
+	    If this is unset, the default is <CODE>MM/DD/YY</CODE>.</TD></TR>
+    <TR><TD><CODE>DATETIME(<A HREF="#clause_expr">&lt;expression&gt;</A> [,
+	      <A HREF="#clause_expr">&lt;string expression&gt;</A>])
+	      [<A HREF="#clause_qual">&lt;qualifier&gt;</A>]</CODE></TD>
+	<TD>Converts the first argument to a datetime. The optional second argument specifies
+	    a <A HREF="#clause_picture">pictorial representation</A> of the input data. If this is
+	    missing, the first argument is expected to follow ANSI SQL datetime format
+	    specifications, which are <CODE>YYYY-MM-DD HH:MM:SS.FFFF</CODE>.</TD></TR>
+    <TR><TD><CODE>DAY(<A HREF="#clause_expr">&lt;date expression&gt;</A>)</CODE></TD>
+	<TD>Returns the day of the month from the date or datetime passed as argument.</TD></TR>
+    <TR><TD><CODE>INTERVAL(<A HREF="#clause_expr">&lt;expression&gt;</A> [,
+	      <A HREF="#clause_expr">&lt;string expression&gt;</A>])
+	      [<A HREF="#clause_qual">&lt;qualifier&gt;</A>]</CODE></TD>
+	<TD>Converts the first argument to an interval. The optional second argument specifies
+	    a <A HREF="#clause_picture">pictorial representation</A> of the input data. If this is
+	    missing, the first argument is expected to follow ANSI SQL interval format
+	    specifications, which are <CODE>YYYY-MM</CODE> and <CODE>DD HH:MM:SS.FFFF</CODE>.</TD></TR>
+    <TR><TD><CODE>MDY(<A HREF="#clause_expr">&lt;integer expression&gt;</A>,
+		<A HREF="#clause_expr">&lt;integer expression&gt;</A>,
+		<A HREF="#clause_expr">&lt;integer expression&gt;</A>)</CODE></TD>
+	<TD>Constructs a date from the three arguments supplied.</TD></TR>
+    <TR><TD><CODE>MONTH(<A HREF="#clause_expr">&lt;date expression&gt;</A>)</CODE></TD>
+	<TD>Returns the month from the date or datetime passed as argument.</TD></TR>
+    <TR><TD><CODE>TODAY</CODE></TD>
+	<TD>Returns the current date. There is no guaranteed that this matches what returned
+	    by the connected engines.</TD></TR>
+    <TR><TD><CODE>WEEKDAY(<A HREF="#clause_expr">&lt;date expression&gt;</A>)</CODE></TD>
+	<TD>Returns the day of the week from the date or datetime passed as argument.</TD></TR>
+    <TR><TD><CODE>YEAR(<A HREF="#clause_expr">&lt;date expression&gt;</A>)</CODE></TD>
+	<TD>Returns the year from the date or datetime passed as argument.</TD></TR>
+    </TABLE></LI>
+<LI><H4>String</H4>
+    <TABLE>
+    <TR><TD><CODE>ASCII(<A HREF="#clause_expr">&lt;integer expression&gt;</A>)</CODE></TD>
+	<TD>Converts the integer argument to a character</TD></TR>
+    <TR><TD><CODE>CHAR_LENGTH(<A HREF="#clause_expr">&lt;string expression&gt;</A>)</CODE></TD>
+	<TD>Returns the character (as opposed to byte) length of a multybyte string.</TD></TR>
+    <TR><TD><CODE>DISPLAYFORMAT[(<A HREF="#clause_exprlist">&lt;integer expression list&gt;</A>,
+	            )]</CODE></TD>
+	<TD>(only valid within expressions associated to an active statement)
+	    Returns a string containing a format specifier generated from the
+            data types gathered from column list as specified in the
+	    arguments.</TD></TR>
+    <TR><TD><CODE>INDEX(<A HREF="#clause_expr">&lt;string expression&gt;</A>,
+	            <A HREF="#clause_expr">&lt;string expression&gt;</A>)</CODE></TD>
+	<TD>Returns the starting point of the second arcgument within the first argument.</TD></TR>
+    <TR><TD><CODE>INITCAP(<A HREF="#clause_expr">&lt;string expression&gt;</A>)</CODE></TD>
+	<TD>Converts to upper case the initial character in each word in the argument.</TD></TR>
+    <TR><TD><CODE>LENGTH(<A HREF="#clause_expr">&lt;string expression&gt;</A>)</CODE></TD>
+	<TD>Returns the length of a string.</TD></TR>
+    <TR><TD><CODE>LOWER(<A HREF="#clause_expr">&lt;string expression&gt;</A>)</CODE></TD>
+	<TD>Converts every character in the input argument to lowercase.</TD></TR>
+    <TR><TD><CODE>LPAD(<A HREF="#clause_expr">&lt;string expression&gt;</A>,
+	            <A HREF="#clause_expr">&lt;integer expression&gt;</A> [,
+		    <A HREF="#clause_expr">&lt;string expression&gt;</A>])</CODE></TD>
+	<TD>Pads the first argument to the length specified by the second argument by repeatedly
+	 prepending the pattern specified by the third.</TD></TR>
+    <TR><TD><CODE>MATCH(<A HREF="#clause_expr">&lt;string expression&gt;</A>,
+	            <A HREF="#clause_expr">&lt;string expression&gt;</A>)</CODE></TD>
+	<TD>Returns the starting point within the first argument of a string matching
+	the regular expression in the second argument.</TD></TR>
+    <TR><TD><CODE>PAD(<A HREF="#clause_expr">&lt;string expression&gt;</A>,
+	            <A HREF="#clause_expr">&lt;integer expression&gt;</A>)</CODE></TD>
+	<TD>Construncts a string containing a repeated pattern as per first argument, and long as
+	    many characters as specified in the second.</TD></TR>
+    <TR><TD><CODE>REPLACE(<A HREF="#clause_expr">&lt;string expression&gt;</A>,
+	            <A HREF="#clause_expr">&lt;string expression&gt;</A> [,
+		    <A HREF="#clause_expr">&lt;string expression&gt;</A>
+		    [, <A HREF="#clause_expr">&lt;integer expression&gt;</A>,
+		    <A HREF="#clause_expr">&lt;integer expression&gt;</A>]])</CODE></TD>
+	<TD>Replaces in the first argument every occurrence of the second argument with the third.
+	    The optional fourth and fifth arguments stipulate a starting point and a length.</TD></TR>
+    <TR><TD><CODE>RPAD(<A HREF="#clause_expr">&lt;string expression&gt;</A>,
+	            <A HREF="#clause_expr">&lt;integer expression&gt;</A> [,
+		    <A HREF="#clause_expr">&lt;string expression&gt;</A>])</CODE></TD>
+	<TD>Pads the first argument to the length specified by the second argument by repeatedly
+	 appending the pattern specified by the third.</TD></TR>
+    <TR><TD><CODE>SUBSTR(<A HREF="#clause_expr">&lt;string expression&gt;</A>,
+	            <A HREF="#clause_expr">&lt;integer expression&gt;</A> [,
+	            <A HREF="#clause_expr">&lt;integer expression&gt;</A>])</CODE></TD>
+	<TD>Extract a substring from the first argument starting at the second argument, either
+	    up to the end of the string or for the length specified by the third argument.</TD></TR>
+    <TR><TD><CODE>UPPER(<A HREF="#clause_expr">&lt;string expression&gt;</A>)</CODE></TD>
+	<TD>Converts every character in the input argument to lowercase.</TD></TR>
+    </TABLE></LI>
+<LI><H4>System</H4>
+    <TABLE>
+    <TR><TD><CODE>FORK</CODE></TD>
+    <TD>Creates a child process as in <CODE>fork(2)</CODE>. Returns the child process id to the parent
+       process, 0 to the child process and -1 in case of errors, with the <CODE>DBINFO</CODE> variable
+       <CODE>errno</CODE> being set to the actual error number. The child process does not inherit
+       any of the parent resources, and performs an implicit <CODE>EXIT</CODE> at the end of the
+       script.</TD></TR>
+    <TR><TD><CODE>EXEC(<A HREF="#clause_expr">&lt;string expression&gt;</A>)</CODE></TD>
+    <TD>Executes a system command without ever returning. It maps to
+    <PRE>
+    execl("/bin/sh", "-c", command_line, NULL);</PRE>
+    so it handles shell expansions, etc. Sets <CODE>errno</CODE>.</TD></TR>
+    <TR><TD><CODE>WAIT</CODE></TD>
+    <TD>Waits for any child processes as in <CODE>wait(2)</CODE>. Returns the pid
+    of the child that has just terminated. Return code and error number
+    are returned by <CODE>DBINFO("$?")</CODE> and <CODE>DBINFO("errno")</CODE> respectively.</TD></TR>
+    <TR><TD><CODE>WAITPID(<A HREF="#clause_expr">&lt;integer expression&gt;</A>)</CODE></TD>
+    <TD>Waits for a specific child to terminate as in <CODE>waitpid(2)</CODE>.
+       Same return value and behaviour as <CODE>WAIT</CODE>.</TD></TR>
+    <TR><TD><CODE>RUN(<A HREF="#clause_expr">&lt;string expression&gt;</A>)</CODE></TD>
+    <TD>Combines <CODE>FORK</CODE>, <CODE>EXEC</CODE> and <CODE>WAITPID</CODE> in one convenient
+       call. Returns the return code from the child process,</TD></TR>
+    <TR><TD><CODE>SPAWN(<A HREF="#clause_expr">&lt;string expression&gt;</A>)</CODE></TD>
+	<TD>Combines <CODE>FORK</CODE> and <CODE>EXEC</CODE>. Returns the child's process id.</TD></TR>
+    <TR><TD><CODE>FOPEN(<A HREF="#clause_expr">&lt;string expression&gt;</A>,
+	            <A HREF="#clause_expr">&lt;string expression&gt;</A>)</CODE></TD>
+    <TD>Opens a file as for <CODE>fopen (3)</CODE>. Returns a file desciptor. Sets
+	<CODE>errno</CODE>.</TD></TR>
+    <TR><TD><CODE>POPEN(<A HREF="#clause_expr">&lt;string expression&gt;</A>,
+		    <A HREF="#clause_expr">&lt;string expression&gt;</A>)</CODE></TD>
+    <TD>Opens a pipe and forks a child process as in <CODE>popen (3)</CODE>. Returns a file
+       descriptor. Sets <CODE>errno</CODE>.</TD></TR>
+    <TR><TD><CODE>SCLOSE(<A HREF="#clause_expr">&lt;integer expression&gt;</A>)</CODE></TD>
+        <TD>Closes a file descriptor opened with either <CODE>FOPEN</CODE> or <CODE>POPEN</CODE>.
+           Sets <CODE>errno</CODE>.</TD></TR>
+    <TR><TD><CODE>GETENV(<A HREF="#clause_expr">&lt;string expression&gt;</A>)</CODE></TD>
+	<TD>Returns an environmetal variable value.</TD></TR>
+    <TR><TD><CODE>SLEEP(<A HREF="#clause_expr">&lt;integer expression&gt;</A>)</CODE></TD>
+        <TD>Suspends the scripts execution for the given number of seconds.</TD></TR>
+    <TR><TD><CODE>USER</CODE></TD>
+        <TD>Returns the user id. This may very well be different from what each connected
+	engine would return.</TD></TR>
+    <TR><TD><CODE>EVAL(<A HREF="#clause_expr">&lt;string expression&gt;</A>)
+		    </CODE></TD>
+    <TD>Executes the string argument and returns the output.
+       Sets <CODE>errno</CODE>.</TD></TR>
+    </TABLE></LI>
+<LI><H4>Miscellaneous</H4>
+    <TABLE>
+    <TR><TD><CODE>COUNT(<A HREF="#clause_variable">&lt;hash variable&gt;</A>)</CODE></TD>
+	<TD>Returns the number of elements in a hash.</TD></TR>
+    <TR><TD><CODE>COUNT(*)</CODE></TD>
+	<TD>(When part of the <A HREF="#clause_aggregate">aggregate clause</A>)
+	    Returns the number of elements in a <CODE>INPUT</CODE>, <CODE>PIPE FROM</CODE>
+	    or <CODE>READ</CODE>statements.</TD></TR>
+    <TR><TD><CODE>DBINFO(<A HREF="#clause_expr">&lt;string expression&gt;</A>)</CODE></TD>
+        <TD>The argument to <CODE>DBINFO</CODE> can be one of
+	<UL>
+	<LI><CODE>sqlca.sqlcode</CODE>, which returns the latest SQL error.</LI>
+	<LI><CODE>sqlca.sqlerrd1</CODE> is source dependent.</LI>
+	<LI><CODE>sqlca.sqlerrd2</CODE> is source dependent but usually returns the number
+		of rows processed.</LI>
+	<LI><CODE>errno</CODE> contains operating system error codes from functions that populate it.</LI>
+	<LI><CODE>$?</CODE> provides the return code of the latest terminating child.</LI>
+	</UL></TD></TR>
+    <TR><TD><CODE>DECODE(<A HREF="#clause_expr">&lt;expression&gt;</A>,
+		     <A HREF="#clause_expr">&lt;when expression&gt;</A>,
+		     <A HREF="#clause_expr">&lt;then expression&gt;</A> [, ...]
+		     [, <A HREF="#clause_expr">&lt;else expression&gt;</A>])</CODE></TD>
+	<TD>Functional equivalent to the <A HREF="#clause_expr"><CODE>CASE</CODE> expression</A>.</TD></TR>
+    <TR><TD><CODE>FILETOBLOB(<A HREF="#clause_expr">&lt;string expression&gt;</A>)</CODE></TD>
+	<TD>Loads a blob variable from the file in the argument.</TD></TR>
+    <TR><TD><CODE>FILETOTEXT(<A HREF="#clause_expr">&lt;string expression&gt;</A>)</CODE></TD>
+	<TD>Loads a string variable from the file in the argument.</TD></TR>
+    <TR><TD><CODE>HEX(<A HREF="#clause_expr">&lt;integer expression&gt;</A>)</CODE></TD>
+	<TD>Functional equivalent to <A HREF="#clause_expr"><CODE>PICTURE "%x"</CODE></A>.</TD></TR>
+    <TR><TD><CODE>NVL(<A HREF="#clause_expr">&lt;expression&gt;</A>,
+		    <A HREF="#clause_expr">&lt;expression&gt;</A>)</CODE></TD>
+	<TD>Returns the first argument if not NULL, otherwise the second.</TD></TR>
+    <TR><TD><CODE>RANDOM(<A HREF="#clause_expr">&lt;integer expression&gt;</A>[,
+		    <A HREF="#clause_expr">&lt;integer expression&gt;</A>])</CODE></TD>
+	<TD>Generates an integer random number between 0 and the first argument.
+	    The optional second number seeeds the random number generator.</TD></TR>
+    </TABLE></LI>
+</UL>
+<P><A NAME="clause_qual"><H3>Datetime and Interval qualifiers</A><HR></H3></P>
+<UL>
+<LI>Datetimes: <CODE>[YEAR|MONTH|DAY|HOUR|MINUTE|SECOND|FRACTION] TO
+	             [YEAR|MONTH|DAY|HOUR|MINUTE|SECOND|FRACTION]</CODE></LI>
+<LI>Intervals: <CODE>[YEAR|MONTH] TO [YEAR|MONTH]</CODE> or
+	       <CODE>[DAY|HOUR|MINUTE|SECOND|FRACTION] TO [DAY|HOUR|MINUTE|SECOND|FRACTION]</CODE></LI>
+</UL>
+<P>The second qualifier unit must not be higher than the first.</P>
+
+<P><A NAME="clause_picture"><H3>Formatting specifiers</A><HR></H3></P>
+<P>These are used as part of the <A HREF="#clause_expr"><CODE>PICTURE</CODE></A> expression clause and 
+<A HREF="#clause_format"><CODE>FORMAT</CODE></A> clause to specify numeric, date and datetime or
+interval display formats, and, for dates, datetimes and intervals, input pictures as part of the
+<A HREF="#clause_pattern"><CODE>PATTERN</CODE></A> clause.</P>
+
+<UL>
+<LI><H4>Numeric</H4>
+<TABLE>
+<TR><TD><CODE>*</CODE></TD>
+    <TD>Fills with asterisks any character position than would have been otherwise left blank.</TD></TR>
+<TR><TD><CODE>&amp;</CODE></TD>
+    <TD>Fills with zeroes any character position than would have been otherwise left blank.</TD></TR>
+<TR><TD><CODE>#</CODE></TD>
+    <TD>Changes leading zeroes with blanks.</TD></TR>
+<TR><TD><CODE>&lt;</CODE></TD>
+    <TD>Left justifies the output. Changes leading zeroes to a null string.</TD></TR>
+<TR><TD><CODE>,</CODE></TD>
+    <TD>Represents the thousand separator. Only appears if the number has four digits or more.</TD></TR>
+<TR><TD><CODE>.</CODE></TD>
+    <TD>Represents the decimal separator. Only one can appear in the picture string.</TD></TR>
+<TR><TD><CODE>-</CODE></TD>
+    <TD>Literal negative sign. It only appears if the number is negative. Multiple minus
+	characters make the negative sign float to the right.</TD></TR>
+<TR><TD><CODE>+</CODE></TD>
+    <TD>Literal positive sign. It only appears if the number is positive. Multiple plus
+	characters make the positive sign float to the right.</TD></TR>
+<TR><TD><CODE>(</CODE></TD>
+    <TD>Literal left parethesis, used when the number is negative. Several left paranthesis
+	float the symbol to the right.</TD></TR>
+<TR><TD><CODE>)</CODE></TD>
+    <TD>Literal symbol that appears if  the number is negative.</TD></TR>
+<TR><TD><CODE>$</CODE></TD>
+    <TD>Displays the currency sign. Multiple symbols float the currency sign to the right.</TD></TR>
+</TABLE>
+<P>Any other character is used literally.</P></LI>
+<LI><H4>Date</H4>
+<TABLE>
+<TR><TD><CODE>dd</CODE></TD>
+    <TD>Day of the month as a two digit number.</TD></TR>
+<TR><TD><CODE>ddd</CODE></TD>
+    <TD>Day of the week as a three character string.</TD></TR>
+<TR><TD><CODE>mm</CODE></TD>
+    <TD>Month as a two digit number.</TD></TR>
+<TR><TD><CODE>mmm</CODE></TD>
+    <TD>Month as a three characteer string.</TD></TR>
+<TR><TD><CODE>yy</CODE></TD>
+    <TD>Year as a two digit number.</TD></TR>
+<TR><TD><CODE>yyyy</CODE></TD>
+    <TD>Year as a four digit number.</TD></TR>
+<TR><TD><CODE>ww</CODE></TD>
+    <TD>Day of the week as a two digit number.</TD></TR>
+</TABLE>
+<P>Any other character is used literally.</P></LI>
+<LI><H4>Datetime and interval</H4>
+<TABLE>
+<TR><TD><CODE>%b</CODE></TD>
+    <TD>Abbreviated month name.</TD></TR>
+<TR><TD><CODE>%B</CODE></TD>
+    <TD>Full month name.</TD></TR>
+<TR><TD><CODE>%d</CODE></TD>
+    <TD>Day of the month as a two digit number.</TD></TR>
+<TR><TD><CODE>%Fn</CODE></TD>
+    <TD>Fraction as a <CODE>n</CODE> digit number.</TD></TR>
+<TR><TD><CODE>%H</CODE></TD>
+    <TD>Hours in 24 hours format, as a two digit number.</TD></TR>
+<TR><TD><CODE>%I</CODE></TD>
+    <TD>Hours in 12 hours format, as a two digit number.</TD></TR>
+<TR><TD><CODE>%M</CODE></TD>
+    <TD>Minutes as a two digit number.</TD></TR>
+<TR><TD><CODE>%m</CODE></TD>
+    <TD>Month as a two digit number.</TD></TR>
+<TR><TD><CODE>%p</CODE></TD>
+    <TD>AM or PM as a two character string.</TD></TR>
+<TR><TD><CODE>%S</CODE></TD>
+    <TD>Seconds as a two digit number.</TD></TR>
+<TR><TD><CODE>%y</CODE></TD>
+    <TD>Year as a two digit number.</TD></TR>
+<TR><TD><CODE>%Y</CODE></TD>
+    <TD>Year as a four digit number.<TD></TR>
+<TR><TD><CODE>%%</CODE></TD>
+    <TD>Literal percentage symbol.</TD></TR>
+</TABLE>
+<P>Any other character is used literally.</P></LI>
+</UL>
+
+<P><A NAME="clause_assignment"><H3>Assignments</A><HR></H3></P>
+<PRE>[ <A HREF="#clause_variable">&lt;variable&gt;</A> [ &lt;substring range&gt; ] = <A HREF="#clause_expr">&lt;expression&gt;</A> |
+  <A HREF="#clause_variable">&lt;variable&gt;</A> ::= <A HREF="#clause_cast">&lt;type cast&gt;</A> |
+  <A HREF="#clause_variable">&lt;variable&gt;</A> [ + | - | * | / | || ] = <A HREF="#clause_expr">&lt;expression&gt;</A> ]</PRE>
+
+<P>This is used as either part of the <CODE>LET</CODE> statement or the
+<A HREF=#clause_aggregate>aggregate clause</A>.</P>
+
+<P><A NAME="clause_pattern"><H3>Pattern clause</A><HR></H3></P>
+<PRE>PATTERN [ <A HREF="#clause_expr">&lt;expression&gt;</A> |
+        DELIMITED [ BY <A HREF="#clause_expr">&lt;expression&gt;</A> [ ESCAPE <A HREF="#clause_expr">&lt;expression&gt;</A> ] ] |
+        REGEXP DELIMITED BY <A HREF="#clause_expr">&lt;expression&gt;</A> |
+	EXTRACTOR <A HREF="#clause_ext_function">&lt;external function call&gt;</A> ]</PRE>
+
+<P>The <CODE>PATTERN</CODE> clause is used to specify the format of the data
+read by the <CODE>READ</CODE>, <CODE>INPUT</CODE> and <CODE>PIPE FROM</CODE>
+commands. It's use is similar to the <A HREF="#clause_format"><CODE>FORMAT</CODE></A> clause.</P>
+
+<P><A NAME="clause_using"><H3>Using clause</A><HR></H3></P>
+<PRE>USING <A HREF="#clause_exprlist">&lt;expression list&gt;</A></PRE>
+
+<P>As an alternative to the <A HREF="#FGWEXPREF">expansion facility</A>, SQL
+   statements can use placeholders as you would on an <CODE>OPEN</CODE> or
+   <CODE>EXECUTE</CODE> statement.
+   Use the <CODE>USING</CODE> clause to list the expressions that
+   should substitute placeholders. This feature can be used to insert or update
+   (should you ever get a working version of the <CODE>IFX_UPDDESC</CODE>
+   feature) text or byte values on the fly.</P>
+
+<P><A NAME="clause_conn"><H3>Connection clause</A><HR></H3></P>
+<PRE>CONNECTION [ DEFAULT [ SOURCE <A HREF="#clause_identifier">&lt;source name&gt;</A> ] | <A HREF="#clause_expr">&lt;expression&gt;</A> ]</PRE>
+
+<P>SQL statements are normally executed against the current connection. The 
+   <CODE>CONNECTION</CODE> clause allows to execute a single statement against
+   a different connection, with the only obvious restriction that it needs to
+   be already established.<P>
+
+<P><A NAME="clause_aggregate"><H3>Aggregate clause</A><HR></H3></P>
+<PRE>AGGREGATE [ [ WHEN <A HREF="#clause_expr">&lt;boolean expression&gt;</A> THEN ] <A HREF="#clause_assignment">&lt;assignment clause&gt;</A> |
+     WHEN <A HREF="#clause_expr">&lt;boolean expression&gt;</A> THEN [ BREAK | CONTINUE ] ] [,...]</PRE>
+
+<P>Part of the <CODE>SELECT</CODE> and <CODE>INPUT</CODE> classes of statements,
+this is quite a flaxible clause, in that it can be used to</P>
+
+<UL>
+<LI>skip the initial or final part of an input stream (be it from a stored
+procedure a select, a file or a pipe), or individual records</LI> 
+<LI>modify input records before they are stored</LI>
+<LI>calculate aggregates or maintain row counts</LI>
+<LI>redetermine target variables</LI>
+</UL>
+
+<P>Input field, both as part of expressions or in assignments, are denoted by
+<CODE>COLUMN(<A HREF=#clause_expr>&lt;expression&gt;</A>)</CODE>, with expression
+denoting the field number.</P>
+
+<P><A NAME="clause_redir"><H3>SQL redirection clause</A><HR></H3></P>
+<PRE>[ &lt;insert statement&gt; [ <A HREF="#clause_conn">&lt;connection clause&gt;</A> ] |
+  &lt;execute procedure statement&gt; [ <A HREF="#clause_conn">&lt;connection clause&gt;</A> ] |
+  EXECUTE <A HREF="#clause_expr">&lt;expression&gt;</A> ]</PRE>
+
+<P>Besides storing data, or writing it in a formatted manner, data retrieval
+statements can redirect it to a table, or can execute a stored procedure for
+each row retrieved.</P>
+<P>There are a few limitations on the statements that can be executed:</P>
+<UL>
+<LI><CODE>INSERT</CODE> statements must have a <CODE>VALUES</CODE> clause</LI>
+<LI><CODE>EXECUTE PROCEDURE</CODE> statements must not return any data</LI>
+<LI>Prepared statements can only be of the two types above</LI>
+<LI>The statements must have placeholders to match the fields/columns in the
+input data row</LI>
+</UL>
+
+<P><A NAME="clause_storage"><H3>Storage clause</A><HR></H3></P>
+<PRE>INTO <A HREF="#clause_variable">&lt;variable&gt;</A> [<A HREF="#clause_cast">&lt;type cast&gt;</A>] [, <A HREF="#clause_variable">&lt;variable&gt;</A> [<A HREF="#clause_cast">&lt;type cast&gt;</A>]...]</PRE>
+
+<P>Retrieved data can be stored locally. Use the <CODE>INTO</CODE> clause to list the target variables.</P>
+
+<P><A NAME="clause_format"><H3>Format clause</A><HR></H3></P>
+<PRE>FORMAT [ BRIEF |
+         [ FULL | VERTICAL ] [ <A HREF="#clause_expr">&lt;expression&gt;</A> ] [ HEADERS <A HREF="#clause_expr">&lt;expression&gt;</A> [, <A HREF="#clause_expr">&lt;expression&gt;</A>... ] ] |
+         DELIMITED [<A HREF="#clause_expr">&lt;expression&gt;</A>] [ BY <A HREF="#clause_expr">&lt;expression&gt;</A> [ ESCAPE <A HREF="#clause_expr">&lt;expression&gt;</A> ] ] ]</PRE>
+ 
+<P>Queries and display statements output can be formatted.</P>
+<P>The <CODE>BRIEF</CODE> format only outputs column values separated by commas,
+   with no formatting whatsoever, <CODE>VERTICAL</CODE> will output rows in a
+   header/column fashion (formatting columns in the way), <CODE>DELIMITED</CODE>
+   will produce a single line of delimited expressions (optionally formatted as
+   specified) and lastly <CODE>FULL</CODE> formats rows in a tabular fashion.</P>
+<P>The first expression is a format specifier in which both c format specifiers and
+   <A HREF="#clause_picture">pictorial specifiers</A> can be used.
+    C formats are specified the usual way (see <CODE>sprintf (3)</CODE>), while
+   <A HREF="#clause_picture">pictorial</A> formats have to be enclosed in square brackets.
+   Either way, format specifiers can
+   be interspersed with plain text, hard tabs and new lines, or <CODE>\n</CODE> and <CODE>\t</CODE>.
+   To ease header formatting (in case plain text appears in the format, in particular
+   for vertical formats), columns
+   can be separated with the pipe (<CODE>|</CODE>) sign. This is not required though.
+   Special characters (<CODE>[]%|</CODE> and the quotes in use) can be escaped by doubling
+   them. The backslash has special significance only when followed
+   by either 't' or 'n'.<BR>
+   Note that there's no need to specify as many format specifiers as columns,
+   while with full format, more than needed will combine multiple rows into
+   a single format.</P>
+
+<P>The header clause specifies a list of headers to be output as the
+   first row of the query in full format, and preceding each column
+   in vertical format. Headers will be padded to the length of
+   the appropriate field (full format) or the largest header (vertical).</P>
+
+<P>As for formats, there's no need that the number of headers matches
+   that of the items being selected.</P>
+
+<P><A NAME="syntax_variations"><H3>Syntax Variations</A><HR></H3></P>
+<UL>
+<LI><CODE>END [CLONE|WAIT|FOR|FOREACH|WHILE|IF]</CODE> can be raplaced by <CODE>DONE</CODE>
+    and <CODE>FI</CODE> (a la bourne shell). Similarly <CODE>ELSE IF</CODE> can be replaced
+    by <CODE>ELIF</CODE>.</LI>
+<LI><CODE>errno</CODE>, <CODE>sqlcode</CODE>, <CODE>sqlerrd1</CODE> and <CODE>sqlerrd2</CODE>
+    can be accessed directly rather than through <CODE>DBINFO</CODE></LI>
+<LI><CODE>CHARACTER_LENGTH</CODE> is a synonym for <CODE>CHAR_LENGTH</CODE></LI>
+<LI><CODE>SYSTEM</CODE> is a synonym for <CODE>RUN</CODE></LI>
+<LI>several predefined functions, such as <CODE>RUN</CODE>, <CODE>EXEC</CODE>,
+    <CODE>SPAWN</CODE>, <CODE>WAITPID</CODE> and <CODE>SLEEP</CODE> can be invodeked directly, rather
+    than through <CODE>INVOKE</CODE>, when the return value can be discarded, eg
+    <PRE>sleep 10;</PRE>
+    rather than
+    <PRE>INVOKE sleep(10) RETURNING s;</PRE></LI>
+<LI><CODE>==</CODE> and <CODE>!=</CODE> are synonyms for <CODE>=</CODE> and <CODE>&lt;&gt;</CODE>
+    within <A HREF="#clause_expr">boolean expressions</A></LI>
+<LI><CODE>COLUMN(<A HREF="#clause_expr">&lt;expression&gt;</A>)</CODE> can be raplaced by
+    <CODE>$<A HREF="#clause_expr">&lt;expression&gt;</A></CODE> (a la awk) within
+    the <A HREF="#clause_aggregate">aggregate clause</A></LI>
+<LI>Similarly, <CODE>WHEN <A HREF="#clause_expr">&lt;boolean expression&gt;</A> THEN</CODE> within the
+    <A HREF="#clause_aggregate">aggregate clause</A></LI> can be replaced by
+    <CODE>(<A HREF="#clause_expr">&lt;boolean expression&gt;</A>)</CODE>. Be mindful that the
+    <A HREF="#clause_aggregate">aggregate clause</A> cannot mix and match the two syntax variations.</LI>
+<LI><CODE>CAST(<A HREF="#clause_expr">&lt;expression&gt;</A>, [INT[EGER]|FLOAT|DEC[IMAL]|MONEY|DATE|DATETIME
+    [<A HREF="#clause_qual">&lt;qualifier&gt;</A>]|INTERVAL
+    [<A HREF="#clause_qual">&lt;qualifier&gt;</A>]|STRING|BYTE])</CODE> is an alternative to
+    the <A HREF="#clause_cast">cast operator</A> anywhere within expressions</LI>
+</UL>
+
+<P><A NAME="FGWEXPREF"><H3>Expansion facility</A><HR></H3></P>
+<P>The expansion facility caters for pick lists, query or application output
+  substitution anywhere in the script. Expansions are
+  performed whenever a <CODE>&lt;+ +&gt;</CODE> pair is encountered, can be
+  freely nested and can be any of the following:
+</P>
+<TABLE>
+<TR><TD>
+  <CODE>READ file [ file... ]</CODE></TD>
+  <TD>displays the contents of multiple files</TD></TR>
+<TR><TD>
+  <CODE>EXEC pipe</CODE></TD>
+  <TD>executes an arbitrary application</TD></TR>
+<TR><TD>
+  <CODE>GET <A HREF="#clause_expr">&lt;expression&gt;</A> [, <A HREF="#clause_expr">&lt;expression&gt;</A>... ]</CODE></TD>
+  <TD>returns the concatenated results of the expression list</TD></TR>
+<TR><TD>
+  <CODE>PROMPT <A HREF="#clause_expr">&lt;expression&gt;</A></CODE></TD>
+  <TD>opens a pop up window, prompts the evaluated <CODE><A HREF="#clause_expr">&lt;expression&gt;</A></CODE>
+      to the user, and returns the user response</TD></TR>
+<TR><TD>
+  <CODE>PASSWD <A HREF="#clause_expr">&lt;expression&gt;</A></CODE></TD>
+  <TD>behaves like <CODE>PROMPT</CODE>, except that the text input by the user
+      is not displayed</TD></TR>
+<TR><TD>
+  a <CODE>SELECT</CODE> statement</TD>
+<TD>displays the results of a query. Queries are run against the current connection.</TD></TR>
+</TABLE>
+<P>
+  prefix the above with any of the following options to change expansion
+  behavior:
+</P>
+<TABLE>
+<TR><TD>
+  <CODE>[ CODED | LONE | SILENT | INCLUDE ]</CODE></TD>
+  <TD>Specifies which expansion should be performed.  <CODE>CODED</CODE> will
+  open a code/description pick list (only the code is returned),
+  <CODE>LONE</CODE> will open a description only pick list, <CODE>SILENT</CODE>
+  will just do a plain expansion, while <CODE>INCLUDE</CODE> recursively
+  includes the expansions found while processing the outer one.</TD></TR>
+<TR><TD>
+  <CODE>[ SINGLE | MULTI ]</CODE></TD>
+  <TD>Specifies whether the expansion should return one or more values. For
+  pick lists, this controls whether multiple selections are allowed. For silent
+  expansions, whether only the first or all values should be returned. It does
+  not apply to includes.</TD></TR>
+<TR><TD>
+  <CODE>PUT <A HREF="#clause_variable">&lt;variable&gt;</A></CODE></TD>
+  <TD>Stores the output of the expansion in the variable specified.</TD></TR>
+<TR><TD>
+  <CODE>QUOTES <A HREF="#clause_expr">&lt;expression&gt;</A></CODE></TD>
+  <TD>Specifies quotes to surround each value returned by get or multiple
+  expansions. Default is none. Enter two characters to specify differring
+  start and end quotes.</TD></TR>
+<TR><TD>
+  <CODE>SEPARATOR <A HREF="#clause_expr">&lt;expression&gt;</A></TD>
+  <TD>Specifies the entry separator between each value returned by get or
+  multiple expansions. Default is blank.</TD></TR>
+</TABLE>
+<P>A few gotchas:</P>
+  <UL>
+  <LI>default behavior is <CODE>CODED SINGLE</CODE> (only because I use it a
+      lot :-) wherever pick lists are allowed, and SILENT otherwise</LI>
+  <LI><CODE>QUOTES</CODE> and <CODE>SEPARATOR</CODE> are illegal with
+      <CODE>SINGLE</CODE>, and imply <CODE>MULTI</CODE> (so, <CODE>MULTI</CODE>
+      usage is redundant, with them)</LI>
+  <LI>pick list expansions will fail if the pick list is empty, while
+    <CODE>GET</CODE> and <CODE>SILENT</CODE> expansions can happily expand to
+    nothing. this is useful to silently execute external applications</LI>
+  <LI>The <CODE>PUT</CODE> clause can be source of unexpected side effects</LI>
+  </UL>
+
+<P>Expansions can be commented using a <CODE>&lt;* *&gt;</CODE> pair. At par
+  to <CODE>&lt;+ +&gt;</CODE> pairs, such comments can be nested. Expansions
+  and comment tokens can be escaped with a backslash. Note that the backslash
+  does not escape anything else, thus you don't need to escape it to use it in
+  the context of a select statement or a shell script.<BR>
+  Finally, feel free to use whichever comment mechanism you like, as long as it
+  makes sense within the context in which it is used, eg <CODE>{}</CODE> or
+  <CODE>--&lt;CR&gt;</CODE> in
+  SQL statements, or <CODE>#&lt;CR&gt;</CODE> in perl/awk/sh scripts.</P>
+
+</BODY>
+</HTML>

@@ -1,0 +1,18 @@
+SQSL  json document related functions				Mar 31, 2017
+
+This is a small collection of functions geared to producing json documents
+and document keys from lists of expressions.
+
+Currently what's on offer is:
+
+- key(separator, value list...)
+  builds a <separator> delimited key from the list of values supplied
+
+- row2doc(field names list..., field values...)
+  returns a basic json document from the names and values supplied.
+
+- row2array(values...)
+  returns a basic json array from the values supplied.
+
+Building hints.
+None. This code has no dependecies.

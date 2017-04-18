@@ -1,0 +1,360 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+<HEAD>
+   <TITLE>Structured Query Scripting Language demo scripts</TITLE>
+   <META NAME="author" CONTENT="Marco Greco">
+   <META NAME="generator" CONTENT="Hand assembled in Catania by expert WebMakers from automatically generated parts">
+</HEAD>
+<BODY BGCOLOR=#FFFFFF>
+<H1><HR><CENTER><B>Structured Query Scripting Language demo scripts</CENTER></B><HR></H1>
+
+<P>Several scripts are provided in the doc directory that demonstrate some of
+the structured query scripting language capabilities.</P>
+
+<P><A HREF="#database">database.sqsl</A>, <A HREF="#tables">tables.sqsl</A>,
+<A HREF="#columns">columns.sqsl</A>, <A HREF="#index">index.sqsl</A> and
+<A HREF="#users">users.sqsl</A> provide dbaccess or onmonitor like reports
+listing, unsurprisingly, all the databases in an instance, all the tables in
+a database (choosen through a drop down list), all the columns or indexes
+in a table (selected through two drop down lists...) and all the users and
+related rights in a database.</P>
+
+<P><A HREF="#workload1">workload1.sqsl</A> and
+<A HREF="#workload2">workload2.sqsl</A> demonstrate ways to quickly set up
+multiple processes all connecting to a single database and generating sql
+load. The first script uses a hash of prepared statements, while the second
+uses the expansion facility.</P>
+
+<P><A HREF="#migrate">migrate.sqsl</A> demontrates parallel data transfer
+across two engines using output redirection.</P>
+
+<P>All scripts are fully functional, with the exception of migrate.sqsl which
+requires specifying a few items like source and target instance, database and
+tables before it can be used.</P>
+
+<P><A NAME="database"><H3>database.sqsl</A><HR></H3>
+<PRE>
+database sysmaster;
+select name, owner, created, partnum, case
+  when (is_buff_log=1) then 'B'
+  when (is_ansi=1) then 'A'
+  when (is_logging=1) then 'U'
+  else 'N' end
+  from sysdatabases
+  format full "%-20s %-20s [ddd, dd mmm yyyy] |0x%08x |   %-4s"
+  headers "Database", "Owner", "Date created", "Systables", "Status
+";
+close database
+</PRE>
+
+<P><A NAME="tables"><H3>tables.sqsl</A><HR></H3>
+<PRE>
+database sysmaster;
+database &lt;+lone select name from sysdatabases+&gt;;
+select tabname, tabid, partnum, owner, created, nrows, case
+  when (tabtype="V") then 'View'
+  when (tabtype=" " or tabtype is null) then 'GLS/ver'
+  when (tabtype="S") then 'Synonym'
+  when (partnum=0) then 'Fragmented'
+  else 'Plain' end
+  from systables
+order by tabid
+  format full "%-18s %5i |0x%08x %8s [ddd, dd mmm yyyy] %8i %-7.7s"
+    headers "Name", "Tabid", "Partnum", "Owner", "Created", "Rows", "Type
+     ";
+close database
+</PRE>
+
+<P><A NAME="columns"><H3>columns.sqsl</A><HR></H3>
+<PRE>
+database sysmaster;
+database &lt;+lone select name from sysdatabases+&gt;;
+select colname, colno, decode(mod(coltype, 256),
+  0, 'Char', 1, 'Smallint', 2, 'Integer', 3, 'Float', 4, 'Smallfloat',
+  5, 'Decimal', 6, 'Serial', 7, 'Date', 8, 'Money', 10, 'Datetime',
+  11, 'Byte', 12, 'Text', 13, 'Varchar', 14, 'Interval',
+  'Unknown'), decode(mod(coltype, 256),
+  0, collength||'', 5, round(collength/256,0) || '.' || mod(coltype, 256),
+  8, round(collength/256,0) || '.' || mod(collength, 256),
+  13, mod(collength, 256) || ',' || round(collength/256, 0), ''), case
+  when (coltype>255) then 'No'
+  else 'Yes' end
+  from syscolumns
+  where tabid=&lt;+coded select tabid, tabname from systables order by tabid+&gt;
+  order by colno
+  format full "%-18s| |%-16s %-7s %-6s"
+    headers "Name", "", "Type", "Length", "Nulls
+     ";
+close database
+</PRE>
+
+<P><A NAME="index"><H3>index.sqsl</A><HR></H3>
+<PRE>
+database sysmaster;
+database &lt;+lone select name from sysdatabases+&gt;;
+display  "Name", "Owner", "Type", "Cluster", "Column"
+  format full "%-18s %-8s %-7s %-7s %-18s";
+foreach select idxname, owner, idxtype, clustered, colname, part2, part3,
+               part4, part5, part6, part7, part8
+  from sysindexes i, syscolumns c
+  where i.tabid=&lt;+coded put tbl select tabid, tabname
+   from systables order by tabid+&gt;
+    and c.tabid=i.tabid
+    and i.part1=c.colno
+  order by idxname
+  into name, owner, type, clustered, col1, part2, part3, part4, part5,
+       part6, part7, part8;
+    display name, owner, type, clustered, col1
+      format full "%-18s %-8s %3s     %3s     %-18s";
+    for col in part2, part3, part4, part5, part6, part7, part8;
+	if (length(col)=0);
+	    break;
+	fi;
+	select colname from syscolumns c
+	  where c.colno=?
+	    and c.tabid=?
+	  using col, tbl
+	  format full "\t\t\t\t\t    %-18s";
+    done;
+    display "";
+done;
+close database
+</PRE>
+
+<P><A NAME="users"><H3>users.sqsl</A><HR></H3>
+<PRE>
+database sysmaster;
+database &lt;+lone select name from sysdatabases+&gt;;
+select username,  case
+  when (usertype="D") then 'DBA'
+  when (usertype="R") then 'Resource'
+  else 'Normal' end
+  from sysusers
+  order by username
+  format full "%-8s %-10s"
+    headers "Name", "Type
+     ";
+close database
+</PRE>
+
+<P><A NAME="workload1"><H3>workload1.sqsl</A><HR></H3>
+<PRE>
+{ initialize some vars - alter as you see fit }
+let maxproc=10;
+let db="sysmaster";
+let u="";
+let pwd="&lt;*passwd "enter the password, here"*&gt;";
+
+{ control file to flag that children can bash the engine }
+output to "/tmp/childend";
+display "0" format delimited;
+append to default;
+
+{ fork the children }
+clone maxproc into i, p(i);
+
+    { connect, discard errors and output }
+    whenever error continue;
+    output to "/dev/null";
+    connect to db &lt;+get case when (length(u)&gt;0) then "user u using pwd" end+&gt;;
+
+    { prepare some statements, I really ought to refine this }
+    for s in 0 to 9;
+	create temp table t&lt;+get s+&gt;(col1 int);
+	prepare st(s) from insert into t&lt;+get s+&gt; values(?) using random(1000);
+	prepare st(s+10) from update t&lt;+get s+&gt; set col1=col1-1
+	  where col1=?
+	  using random(1000);
+	prepare st(s+20) from delete from t&lt;+get s+&gt;
+	  where col1=?
+	  using random(1000);
+	prepare st(s+30) from select * from t&lt;+get s+&gt;;
+    done;
+
+    { continually execute statements checking if we have to quit }
+    while (1);
+	input from "/tmp/childend" pattern delimited into childend;
+	if (childend);
+	    exit 1;
+	fi;
+        execute (st(random(40)));
+    done;
+
+  { the parent just amorously keeps track of the children }
+  parent;
+    if (p(i)&lt;0);
+	append to "/tmp/childstatus";
+	display "child ", i, " error ", dbinfo("errno");
+	break;
+    fi;
+done;
+
+{ wait for user to have had enough }
+--&lt;+prompt "just say when to stop"+&gt;
+
+{ change the control file and wait for the offsprings to go away }
+output to "/tmp/childend";
+display "1" format delimited;
+let i=0;
+wait for p.* into r, d;
+done;
+</PRE>
+
+<P><A NAME="workload2"><H3>workload2.sqsl</A><HR></H3>
+<PRE>
+{ initialize some vars - alter as you see fit }
+let maxproc=10;
+let db="sysmaster";
+let u="";
+let pwd="&lt;*passwd "enter the password, here"*&gt;";
+
+{ control file to flag that children can bash the engine }
+output to "/tmp/childend";
+display "0" format delimited;
+append to default;
+
+{ define some statements }
+for s in 0 to 9;
+    let st(s)="create temp table t&lt;+get s+&gt;(col1 int)";
+    let st(s+10)="insert into t&lt;+get s+&gt; values(?) using random(1000)";
+    let st(s+20)="update t&lt;+get s+&gt; set col1=col1-1 where col1=? using random(1000)";
+    let st(s+30)="delete from t&lt;+get s+&gt; where col1=? using random(1000)";
+    let st(s+40)="select * from t&lt;+get s+&gt;";
+    let st(s+50)="drop table t&lt;+get s+&gt;";
+done;
+
+&lt;* this is functionally equivalent to the above, although sligthly more
+   advanced
+let st(0)="create temp table t\&lt;+get random(9)\+&gt;(col1 int)";
+let st(1)="insert into t\&lt;+get random(9)+\> values(?) using random(1000)";
+let st(2)="update t\&lt;+get random(9)+\> set col1=col1-1 where col1=? using random(1000)";
+let st(3)="delete from t\&lt;+get random(9)\+&gt; where col1=? using random(1000)";
+let st(4)="select * from t\&lt;+get random(9)\+&gt;";
+let st(5)="drop table t\&lt;+get random(9)\+&gt;"; *&gt;
+
+{ fork the children }
+clone maxproc into i, p(i);
+
+    { connect, discard errors and output }
+    whenever error continue;
+    output to "/dev/null";
+    connect to db &lt;+get case when (length(u)&gt;0) then "user u using pwd" end+&gt;;
+
+    { continually execute statements checking if we have to quit }
+    while (1);
+	input from "/tmp/childend" pattern delimited into childend;
+	if (childend);
+	    exit 1;
+	fi;
+	&lt;*get st(random(6))*&gt;
+        &lt;+get st(random(60))+&gt;;
+    done;
+
+  { the parent just amorously keeps track of the children }
+  parent;
+    if (p(i)&lt;0);
+	append to "/tmp/childstatus";
+	display "child ", i, " error ", dbinfo("errno");
+	break;
+    fi;
+done;
+
+{ wait for user to have had enough }
+--&lt;+prompt "just say when to stop"+&gt;
+
+{ change the control file and wait for the offsprings to go away }
+output to "/tmp/childend";
+display "1" format delimited;
+wait for p.* into r, d;
+done;
+</PRE>
+
+<P><A NAME="migrate"><H3>migrate.sqsl</A><HR></H3>
+<PRE>
+{ initialize some vars }
+let maxproc=10;
+let dstdb="informix@rules";
+let srcdb="db2maybe";
+let srcu="";
+let srcpwd="&lt;*passwd "enter the source db password, here"*&gt;";
+let dstu="";
+let dstpwd="&lt;*passwd "enter the dest db password, here"*&gt;";
+let maxtab=0;
+
+{ load source and dest table names }
+foreach read from "/tmp/migratetab" pattern delimited
+  into src(maxtab), dst(maxtab), cols(maxtab);
+    let maxtab=maxtab+1;
+done;
+if (maxproc>maxtab);
+    let maxproc=maxtab;
+fi;
+
+{ while we have tables and have fired enough children,
+  assign a child to a table }
+let i=0;
+let t=0;
+while (t&lt;maxtab);
+    while (i&lt;maxproc);
+	let p=fork;
+
+	{ the child connects and moves data }
+	if (p=0);
+	    whenever error continue;
+	    output to "/dev/null";
+	    connect to srcdb &lt;+get case when (length(srcu)&gt;0)
+					then "user srcu using srcpwd" end+&gt;
+		source db2sqc;
+	    connect to dstdb &lt;+get case when (length(dstu)&gt;0)
+					then "user dstu using dstpwd" end+&gt;
+		source ifmx;
+	    let c=1;
+	    let collist="?";
+	    while (c&lt;cols(t));
+		let collist=collist||", ?";
+		let c=c+1;
+	    done;
+	    select * from &lt;+get src(t)+&gt; connection srcdb
+		insert into &lt;+get dst(t)+&gt; values (&lt;+get collist+&gt;)
+		    connection dstdb;
+	    if (dbinfo("sqlca.sqlerrd2"));
+		exit 1;
+	    else;
+		exit 0;
+	    fi;
+
+	{ the parent just adds the child and table to the child list,
+	  and skips to next  }
+	elif (p&lt;0);
+	    display "child ", i, " error ", dbinfo("errno");
+
+	    { ought to exit here, but we'll carry on }
+
+	else;
+	    let tb(p)=t;
+	    let i=i+1;
+	    let t=t+1;
+	fi;
+    done;
+
+    { when child list full, just wait for one to finish,
+      before spawning another }
+    let p=wait;
+    if (dbinfo("$?"));
+	display "migration of ", src(tb(p)), " to ", dst(tb(p)), " failed";
+    fi;
+    let i=i-1;
+done;
+
+{ and finally just wait for the remaining children }
+while (i);
+    let p=wait;
+    if (dbinfo("$?"));
+	display "migration of ", src(tb(p)), " to ", dst(tb(p)), " failed";
+    fi;
+    let i=i-1;
+done
+</PRE>
+
+</BODY>
+</HTML>

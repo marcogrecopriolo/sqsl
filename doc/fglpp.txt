@@ -1,0 +1,112 @@
+Fglpp documentation						Jan 07, 2009
+
+Author:		Marco Greco (marco@4glworks.com)
+
+Initial release: Apr 96
+Current release: Jan 09
+
+Usage:
+
+nawk -f fglpp [-Dmacros] input.4gl tempglobals output.4gl [ search_dirs... ]
+
+where	macros		are C style macro definitions
+	input.4gl	is the file to be preprocessed
+	tempglobals	is the temporary globals file referenced by output.4gl
+	output.4gl	is the preprocessed file to be passed to c4gl or fglpc
+	search_dirs	is a list of directories where #include or globals
+			files can be found
+
+Directives:
+
+#define name token_string
+#include "filename"
+#if[n]def <macro>
+#else
+#endif
+
+Notes:
+
+Fglpp was written mostly because existing 4gl preprocessing tools (m4gl and
+ppcc4gl) do not apply (or allow, for that matter) #define directives within
+globals files referenced by the files to be preprocessed
+
+By contrast, with fglpp is possible to use code like the following:
+
+sample.4gl:			|	globals.4gl:
+~~~~~~~~~~~			|	~~~~~~~~~~~
+...				|	...
+#define arraysize 10		|	globals
+				|	    define
+globals "globals.4gl"		|		my_array array[arraysize] of ...
+				|	...
+for i=1 to arraysize		|	end globals
+...				|
+end for				|
+
+or:
+
+sample.4gl:			|	globals.4gl:
+~~~~~~~~~~~			|	~~~~~~~~~~~
+...				|	#define arraysize 10
+globals "globals.4gl"		|	globals
+				|	    define
+for i=1 to arraysize		|		my_array array[arraysize] of ...
+...				|	...
+end for				|	end globals
+
+or even:
+
+sample.4gl:			|	globals.4gl:
+~~~~~~~~~~~			|	~~~~~~~~~~~
+...				|	...
+#include "projectdefs"		|	globals
+				|	    define
+globals "globals.4gl"		|		my_array array[arraysize] of ...
+				|	...
+for i=1 to arraysize		|	end globals
+...				|
+end for				|
+
+and have arraysize defined in projectdefs.
+Note that the first or third example give you the possibility to have different
+arraysize for different applications (and you could even use, in different
+applications, different types for the same globals variable)
+
+Unlike ppcc4gl, fglpp tries to preserve the line count of the file to be
+preprocessed. It does this by not writing to the ouput file #define
+directives or comments found in #include files, so if you refrain
+from #including code, the line count of the output file will match
+that of the input file.
+
+M4gl achieves the same result by discarding anything but define directives
+from included files. This altogether precludes the possibility of including
+code in the source file, unless you hack with m4 directives on your own.
+Also, m4gl does not permit to define something within the input file itself
+(of course, it's pretty easy to extend m4gl with such a capability).
+
+Directives may appear anywhere in the input or globals files, and can be
+freely nested.
+Globals and #include files can be placed, besides than in the current
+directory, in any of the directories  specified in the command line.
+
+Note that globals and end globals statements should appear in globals files
+only, and not in #include files referenced by the former.
+If you do differently, fglpp will try to make sense of your code, but it's
+not guaranteed to succeed.
+
+Lastly, as a bonus, fglpp will simulate support for multiple globals files,
+if your 4gl release does not support them.
+
+Limitations:
+
+To partly address speed issues, fglpp currently uses pattern matching for 
+#define substitutions. This, while being as much as 3 times faster than
+proper substitution (i.e. match & substr operations), is not completely
+secure, and could lead to the wrong token being substituted for poorly
+named #defines. This *usually* leads to compile-time errors, so fear not
+incomprehensible run time behaviour (that is, if you refrain from naming a
+definition like a substring of another).
+To be on the safe side I use unique definition prefixes (T_ for types,
+K_ for constants, etc).
+The general rule is not to use definition names that are substrings of
+other tokens.  

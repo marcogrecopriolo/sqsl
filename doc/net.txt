@@ -1,0 +1,20 @@
+
+SQSL network data streams  V0.1 release notes			Mar 31, 2017
+
+This library provides a mechanism to open, read from and write to from network
+connections.
+
+At this moment in time, it only allows streams via sockets.
+This is done by means of a function named 'tcp' that connects to a specific
+host (ip address or FQDN) and port (service or number) and returns a (SQSL)
+file descriptor from which is then possible to read from and write to, in 
+the usual fashion. 
+
+Usage example
+
+LET fd = socket:tcp(host, port);
+READ FROM fd PATTERN DELIMITED;
+
+Building hints
+This has only tested on Windows and Linux, but should work out of the box
+in POSIX compliant operating systems.

@@ -1,0 +1,33 @@
+SQSL SolidDB data source V0.1 release notes			Dec 23, 2009
+
+This data source ought to be considered alpha:- I really haven't tested it
+that much. This is my excuse for the sketchy documentation.
+I will probably go over it again one day. Then again, given my current track
+record, chances are that I will not.
+
+Build problems
+As long as the location of SolidDB is known (all that's needed is the ability
+to run solsql) the source should build out of the box.
+This said, the impression I get is that the Solid run-time libraries might have
+different names depending on the product version. If this is the case, you can
+quickly determine what to link from the makefile in samples/odbc found in  the
+SolidDB installation directory.
+As of this writing, on Windows ports, I haven't managed to properly convert
+the SolidDB ODBC library into an archive, hence it currently builds, but it's
+likely to segv your client.
+If you have a Microsoft Visual Studio installation lying around, there's a
+windows batch file in tools/mvs (aptly named solid.bat) that will build the
+solid source using it.
+
+Connection options
+I haven't found a way to implement exclusive connections.
+
+Further features
+Decimals, dates, times and timestamps are converted onto the corresponding
+Informix types on the fly, and viceversa. Currently the conversion is done
+using charecter strings as middleman, as it appears Solid isn't happy
+selecting any of the above in anything other that character buffers.
+
+Limitations
+As stated earlier, EXCLUSIVE connections are not implemented at this time.
+Nor I have found a way to implement with hold cursors.

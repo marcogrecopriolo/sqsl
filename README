@@ -1,0 +1,193 @@
+Sqsl 0.13 release notes					Apr 18, 2017
+
+The current release has just been ripped off the 4glWorks source and
+autoconfiscated. The x4gl based demo clients need to be cleaned up extensively.
+The readme needs to be slightly less skimpy...
+
+Installation
+============
+The only requirements are CliSDK (c4gl will do in place of CliSDK) and,for
+NT ports, Cygwin with both the native and MinGW gcc compilers (no need to
+install a separate MinGW environment).
+The optional curses demo requires either c4gl (not RDS, though, sorry)
+or Aubit 4gl (Aubit 4gl requires a working CliSDK environment) while the
+optional DB2 and SolidDB sources, predictably, require DB2 and SolidDB
+respectively.
+The command line interpreter demo client can be linked with the readline
+library, if available.
+
+Since the parser is shipped with the source, no parser generator is needed to
+build from scratch, unless you plan to change the grammar.
+In this case, be aware that to make the most of the language
+syntax, a pure parser generator, such as bison or byacc is needed - the 
+%pure-parser directive is not used as such, the parser globals are saved in
+each parser's instantiation context, however most yaccs have too much of
+an environment and too unpredictable at that to be safely stored in
+each parser's context.
+
+Bison and byacc are either open source or in the public domain, so you are
+encouraged to install either, but if this is not possible, there is support
+for non reentrant parsers.
+
+There currently are two distinct windows ports: a native cygwin one, which
+requires a cygwin environment for execution, and a native MinGW, which doesn't.
+The first does not support the Aubit client, but allows the use of the readline
+library with the command line client, the second supports the Aubit client, but
+does not link the readline or regex libraries, unless, that is, native MinGW 
+ones are made available (such as mingw-readline or GnuWin/readline at
+sourceforge.net), and configure is duly informed of them through the
+--with-readline=... and --with-regex switches.
+The default build mode is --without-cygwin.
+
+All this said - the windows ports in this build are disabled.
+Thw win32 environment is very painful when it comes to exporting symbols
+from the main binary to DLLs, and the strategy used so far has become too
+cumbersome to use.
+I will implement the next stratey in the next build.
+
+Not much else is needed aside from working environments for all of the above
+being accessible at the same time.
+As you would expect, the following will get you going:
+
+configure [--with-readline[=readline specs]] [--with-regex[=regex specs] \
+          [--with[out]-cygwin]
+make
+make install
+
+However, before proceeding, consider the following gotchas:
+- the build is unlikely to succeed when mixing and matching 32 and 64
+bits versions of CliSDK, Couchbase, DB2, Solid or the readline library.
+
+- AIX is a bit peculiar about building in 64 bit mode, ar in particular being
+the trouble maker: your best bet is to set OBJECT_MODE=64 in your environment
+as opposed to setting CC to cc -q64
+
+- the DB2 sqc source requires a DB2 installation with a precompiler available,
+a sample database (just run db2sampl) and possibly, depending on the DB2
+version, the DB2CLP environmental variable set to point to the shell the
+software is being built from (the syntax is **<shell process id>**)
+
+Please see INSTALL for further installation details.
+
+Binaries
+========
+curses.4ge
+curses.4ae
+cli
+
+More documentation on these in doc/clients.txt. The first is a curses based
+dbaccess like application based around Informix 4gl, the second offers the 
+same functionality but over Aubit 4gl, while the last is command line
+oriented / readline library based, and does NOT require esql/c or any
+x4gl to be compiled.
+
+There are proof of concept implementations of a nw.js graphics scripting editor,
+and one running inside web browers as a NPAPI plugin.
+These are not ready from prime time.
+
+Libraries
+=========
+libsqsli4gl
+libsqslaubit
+libsqsl
+
+They essentially offer the same functionality, namely the whole of the
+scripting language interpreter. The first, predictably, offers an Informix
+4gl interface, the second Aubit 4gl, the last plain C.
+As you might guess this is to give you the option of embedding the interpreter
+wherever, as opposed to being forced to use my puny demo programs.
+Buildingwise, while the last ONLY requires esql/c, the first does require
+Informix 4gl, while the second both esql/c and Aubit 4gl.
+For the sake of clarity, Informix esql/c is required no matter what engine
+the tool will connect to, as it is used to implement datetime, date, decimal,
+etc calculations.
+
+Data sources
+============
+ifmx
+ifmx4
+db2sqc
+db2cli
+db2esql
+solid
+cb
+
+Sources are implemented as shared objects - the naming conventions is 
+fgw<source name>.<shared object extension> (.so or .dll to be completely clear).
+The ifmx source gets built by default, unless no esql/c is available and the
+only c4gl at hand is a V4, in which case it's the ifmx4 source that gets built
+(the last time the ifmx4 source has been built and used was around the year
+2000, so you are very much on your own with that one).
+As of this writing, on windows, an ifmx source built with the MinGW compiler
+has a tendency to segv on fetch buffer allocations after having executed 60 to
+70 statements. No such issue if the source is built with Microsoft Visual
+Studio, so if you have a copy lying around, there's a windows batch file in
+tools/mvs that can be used to build the source with it.
+
+The db2esql source is provided as a demo, and gets built, but not installed,
+if the CliSDK version found is 2.90 or greater, but not 3.50 or above.
+The major issue is that the CliSDK esql/c runtime libraries use the same
+symbol names for Informix and DB2 connectivity, so chances are that the db2esql
+source will at some stage take a wrong turn, end up in the Informix
+communicaton layer, and segv.
+Interestingly, once the db2esql source is loaded, chances are that the ifmx
+source might decide to take a wrong turn, end up in the DB2 connectivity
+layer, and segv.
+The only reliable way to use the db2esql source is to compile both the sqsl
+libraries and the the frontend binaries in DB2 mode (how to do that correctly
+is left as an exercise to the reader) and not use it in conjunction with
+the ifmx source.
+As far as I know there is no plan no make esql/c applications concurrently
+connect to Informix and DB2, which makes the db2esql source of limited use.
+Later 3.50 CliSDKs sport a db2 precompiler that is downright broken and will
+cry syntax error on embedded SQL that is perfectly fine.
+
+The Couchbase source is currently alpha and is only provided as support for
+a dzone article detailing how to migrate to Couchbase using SQSL and N1QL.
+It requires nothing else beyound libcouchbase being available.
+
+The doc directory contains documentation on the other sources.
+
+User Defined Functions
+======================
+json
+net
+
+This build sports a couple of examples of user defined functions, in two
+libraries.
+Json offers a few functions to generate document keys and json documents 
+from expression lists, while net demonstrates the use of the stream API
+via a function that opens a socket (for reading and writing), which can
+then be used to against whatever network service takes your fancy.
+
+SQSLDIR
+=======
+This environmental variable points to the directory that holds forms,
+help files and related stuff which the curses interfaces use.
+There is a curses script to fix everything the curses based binaries need.
+Said script will pick up whatever curses based (Informix or Aubit) is present,
+or you can pass it an extension as the only argument, and it will pick up
+the binary of your choice. Aubit and Informix based binaries can coexist in
+the same directory.
+SQSLDIR also specifies the location of shared objects containing data sources
+or user defined functions.
+
+User authentication and server connection string format
+=======================================================
+In a nutshell, mostly, if the database engine and connenctivity layer in use
+supports <insert favourite buzzword, here>, then sqsl does too.
+Currently, exceptions are anything that requires callbacks, like PAM challenges.
+
+Security
+========
+Although care has been taken to avoid buffer overruns and other similar
+amenities, no claim is being made on the security risks you could run into
+when using this software. In particular, bear in mind that user defined
+functions and the location of the shared objects being pointed by an
+environmental variable do allow for malicious code to be unknowingly
+executed.
+
+Demo sqsl code
+==============
+is provided in the demo directory. Sketchy notes on the examples are provided
+in doc/demo.txt.

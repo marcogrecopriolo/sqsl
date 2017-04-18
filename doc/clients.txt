@@ -1,0 +1,67 @@
+SQSL demo clients documentation					 Jan 26, 2009
+
+The structured query scripting language distribution ships two demo clients,
+cli and curses, the first being command line oriented / readline library
+based, the other sporting a curses interface implemented in x4gl.
+Both the Informix and Aubit 4gl compilers can be used to build the demo curses
+client, and in fact if the configure script finds both, it will build both
+versions. To simplify things, a wrapper script, aptly named curses, will pick
+whichever binary it finds in the installation directory and execute it.
+
+All the clients share a similar command line syntax that goes along the lines of
+
+[curses|cli] [-V |
+	      [-N] [-w <width>] [-H] [-D '<variable>=<expression>'...]
+	      [<script name>] [<arg 2> <arg 3>...]]
+where
+
+-V displays version information
+-N turns off execution of $HOME/.sqslrc
+-w sets the output width
+-H turns on HTML output
+-D defines a new variable and assigns an expression to it
+
+The tools will load and execute the script sepcified in argument #1, and
+populate a hash named ARGV with the subsequent arguments (ARGV(0) contains
+the tool name, ARGV(1) the script name). Lack of command line arguments will
+cause the tool to enter interactive mode (readline a la bash mode for cli,
+editor / results panes interface for curses)
+
+While the ARGV hash is quick and dirty, -D is flexible but quirky: it requires
+an assignment to be passed as a single parameter, which further has to 
+comply with the sqsl syntax (which means for instance that you have to bracket
+strings with quotes, etc). Ths is exemplified by the  following three code
+snippets:
+
+...
+cli - $1 $2 $3 <<!
+....
+if (ARGV(2)+ARGV(3)+ARGV(4)::decimal...)
+...
+!
+
+cli - `expr $1 + $2 + $3` <<!
+...
+if (ARGV(2)::decimal...)
+...
+!
+
+cli -D "var = ($1 + $2 + $3)::decimal" - <<!
+...
+if (var...)
+...
+!
+
+In the first example multiple scripts are needed to handle multiple parameters
+or types, while the last example is oblivious to varying shell script
+parameter count and is independent of parameter type.
+
+Before executing the script specified in the first argument, or sqsl entered
+interactively, the tools will look for a file named $HOME/.sqslrc, and if
+found execute it - unless -N is specified. .sqslrc is executed after parameter
+parsing, and can be used to set defaults, terminate execution if certain
+conditions cannnot be met, or even modifying arguments passed through the
+command line.
+
+In case you are wondering, you exit interactive mode with the eXit menu entry
+while in curses, and issuing the QUIT command in cli.

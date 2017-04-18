@@ -1,0 +1,11 @@
+database sysmaster;
+select name, owner, created, partnum, case
+  when (is_buff_log=1) then 'B'
+  when (is_ansi=1) then 'A'
+  when (is_logging=1) then 'U'
+  else 'N' end
+  from sysdatabases
+  format full "%-20s %-20s [ddd, dd mmm yyyy] |0x%08x |   %-4s"
+  headers "Database", "Owner", "Date created", "Systables", "Status
+";
+close database

@@ -1,0 +1,12 @@
+database sysmaster;
+database <+lone select name from sysdatabases+>;
+select username,  case
+  when (usertype="D") then 'DBA'
+  when (usertype="R") then 'Resource'
+  else 'Normal' end
+  from sysusers
+  order by username
+  format full "%-8s %-10s"
+    headers "Name", "Type
+     ";
+close database

@@ -1,0 +1,85 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+<HEAD>
+   <TITLE>Structured Query Scripting Language: demo clients reference</TITLE>
+   <META NAME="author" CONTENT="Marco Greco">
+   <META NAME="generator" CONTENT="Hand assembled in Catania by expert WebMakers from automatically generated parts">
+</HEAD>
+<BODY BGCOLOR=#FFFFFF>
+<H1><HR><CENTER><B>Structured Query Scripting Language: demo clients reference</CENTER></B><HR></H1>
+
+<P>The structured query scripting language distribution ships two demo clients,
+cli and curses, the first being command line oriented / readline library
+based, the other sporting a curses interface implemented x4gl.<BR>
+
+Both the Informix and Aubit 4gl compilers can be used to build the demo curses
+client, and in fact if the configure script finds both, it will build both
+versions. To simplify things, a wrapper script, aptly named curses, will pick
+whichever binary it finds in the installation directory and execute it.<BR>
+
+All the clients share a similar command line syntax that goes along the lines
+of</P>
+
+<PRE>[curses|cli] [-V |
+		  [-N] [-w &lt;width&gt;] [-H] [-D '&lt;variable&gt;=&lt;expression&gt;'...]
+		  [&lt;script name&gt;] [&lt;arg 2&gt; &lt;arg 3&gt;...]]</PRE>
+<P>where
+<UL>
+<LI><CODE>-V</CODE> displays version information</LI>
+<LI><CODE>-N</CODE> turns off execution of <CODE>$HOME/.sqslrc</CODE></LI>
+<LI><CODE>-w</CODE> sets the output width</LI>
+<LI><CODE>-H</CODE> turns on HTML output</LI>
+<LI><CODE>-D</CODE> defines a new variable and assigns an expression to it</LI>
+</UL></P>
+
+<P>The tools will load and execute the script sepcified in argument #1, and
+populate a hash named <CODE>ARGV</CODE> with the subsequent arguments
+(<CODE>ARGV(0)</CODE> contains the tool name, <CODE>ARGV(1)</CODE> the script
+name).
+Lack of command line arguments will cause the tool to enter interactive mode
+(readline a la bash mode for cli, editor / results panes interface for
+curses.4ge).</P>
+
+<P>While the <CODE>ARGV</CODE> hash is quick and dirty, <CODE>-D</CODE> is
+flexible but quirky: it requires an assignment to be passed as a single
+parameter, which further has to comply with the sqsl syntax (which means for
+instance that you have to bracket strings with quotes, etc). Ths is
+exemplified by the  following three code snippets:</P>
+
+<PRE>...
+cli - $1 $2 $3 &lt;&lt;!
+....
+if (ARGV(2)+ARGV(3)+ARGV(4)::decimal...)
+...
+!
+
+cli - `expr $1 + $2 + $3` &lt;&lt;!
+...
+if (ARGV(2)::decimal...)
+...
+!
+
+cli -D "var = ($1 + $2 + $3)::decimal" &lt;&lt;!
+...
+if (var...)
+...
+!
+</PRE>
+
+<P>In the first example multiple scripts are needed to handle multiple
+parameters or types, while the last example is oblivious to varying shell
+script parameter count and is independent of parameter type.</P>
+
+<P>Before executing the script specified in the first argument, or sqsl entered
+interactively, the tools will look for a file named <CODE>$HOME/.sqslrc</CODE>,
+and if found execute it - unless <CODE>-N</CODE> is specified.
+<CODE>.sqslrc</CODE> is executed after parameter parsing, and can be used to
+set defaults, terminate execution if certain conditions cannnot be ment, or
+even modifying arguments passed through the command line.</P>
+
+<P>In case you are wondering, you exit interactive mode with the
+<CODE>eXit</CODE> menu entry 
+while in curses, and issuing the <CODE>QUIT</CODE> command in cli.</P>
+
+</BODY>
+</HTML>

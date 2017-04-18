@@ -1,0 +1,21 @@
+SQSL demo scripts documentation					May 15, 2008
+
+Several scripts are provided in the doc directory that demonstrate some of
+the structured query scripting language capabilities.
+
+databases.sqsl, tables.sqsl, index.sqsl, columns.sqsl and users.sqsl
+provide dbaccess or onmonitor like reports listing, unsurprisingly, all the
+databases in an instance, all the tables in a database (choosen through a drop
+down list), all the columns or indexes in a table (selected through two drop
+down lists...) and all the users and related rights in a database.
+
+Workload1.sqsl and workload2.sqsl demonstrate ways to quickly set up
+multiple processes all connecting to a single database and generating sql
+load. The first script uses a hash of prepared statements, while the second
+uses the expansion facility.
+
+Migrate.sqsl demontrates parallel data transfer across two engines using output
+redirection.
+All scripts are fully functional, with the exception of migrate.sqsl which
+requires specifying a few items like source and target instance, database and
+tables before it can be used.

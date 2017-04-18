@@ -1,0 +1,2 @@
+cl /MT /I..\sqsl /I..\oslib /I"%SOLDIR%\include" -DFGWSOURCE -DMVS -DSS_NT -DNEED_XSL -c solid.c
+link /DLL solid.obj "%SOLDIR%\lib\solidimpodbcu.lib" /OUT:fgwsolid.dll

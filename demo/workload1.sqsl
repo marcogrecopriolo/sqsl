@@ -1,0 +1,61 @@
+{ initialize some vars - alter as you see fit }
+let maxproc=10;
+let db="sysmaster";
+let u="";
+let pwd="<*passwd "enter the password, here"*>";
+
+{ control file to flag that children can bash the engine }
+output to "/tmp/childend";
+display "0" format delimited;
+append to default;
+
+{ fork the children }
+clone maxproc into i, p(i);
+
+    { connect, discard errors and output }
+    whenever error continue;
+    output to "/dev/null";
+    connect to db <+get case when (length(u)>0) then
+                   'user "<+get u+>" using "<+get pwd+>"' end+>;
+
+    { prepare some statements, I really ought to refine this }
+    for s in 0 to 9;
+	create temp table t<+get s+>(col1 int);
+	prepare st(s) from insert into t<+get s+> values(?) using random(1000);
+	prepare st(s+10) from update t<+get s+> set col1=col1-1
+	  where col1=?
+	  using random(1000);
+	prepare st(s+20) from delete from t<+get s+>
+	  where col1=?
+	  using random(1000);
+	prepare st(s+30) from select * from t<+get s+>;
+    done;
+
+    { continually execute statements checking if we have to quit }
+    while (1);
+	input from "/tmp/childend" pattern delimited into childend;
+	if (childend);
+	    exit 1;
+	fi;
+        execute (st(random(40)));
+    done;
+
+  { the parent just amorously keeps track of the children }
+  parent;
+    if (p(i)<0);
+	append to "/tmp/childstatus";
+	display "child ", i, " error ", dbinfo("errno");
+	break;
+    fi;
+done;
+
+{ wait for user to have had enough }
+--<+prompt "just say when to stop"+>
+
+{ change the control file and wait for the offsprings to go away }
+output to "/tmp/childend";
+display "1" format delimited;
+append to default;
+let i=0;
+wait for p.* into r, d;
+done;

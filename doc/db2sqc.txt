@@ -1,0 +1,54 @@
+SQSL ESQL/C DB2 data source V0.9 release notes			Jan 5, 2009
+
+This data source ought to be considered alpha:- I really haven't tested it
+that much. This is my excuse for the sketchy documentation.
+I will probably go over it again one day. Then again, given my current track
+record, chances are that I will not.
+
+Build problems
+The bulk of those arises from the DB2 environment being incorrectly set.
+Hopefully the build script ought to terminate early, but it is not uncommon
+to see that the C compiler tries to link Informix header files rather than DB2.
+
+Connection options
+The connect statement supports the EXCLUSIVE clause, which allows to gain
+exclusive access to a database.
+
+SQL additions
+Altough not really part of V7 DB2 UDB advertised SQL syntax, this source does
+support the CHANGE ISOLATION statement: it does so by switching packages
+on the fly. SET CURRENT ISOLATION has made it in V8 anyhow.
+
+Further features
+Decimals, dates, times and timestamps are converted onto the corresponding
+Informix types on the fly, and viceversa.
+
+Limitations
+There is a limit of 128 active cursors per process at any one time: 32 named
+cursors, 32 named cursors with hold, 32 unnamed cursors or statements, 32
+unnamed cursors with hold.
+Named cursors are named C01 to C32 and H01 to H32, the 'H' names being
+assigned to WITH HOLD cursors (cursor names are fixed once and for all at
+compile time and stored in the bind file/package - the application does not
+even know their names). Cursor names are global at the process level.
+If you come from the Informix world and this all seems weird to you, sorry.
+This is the way things are with the esql/c precompiler provided by DB2. If it
+makes you feel any better, REXX (Gosh! you don't know what that is?! Shame on
+you!) has got the same issues. If you really are after your own cursor names,
+consider using the db2cli source.
+
+DB2 has an hang up about converting in between data types (in particular
+numeric and char datatypes seem not to like each other that much). This
+would not be a problem, except for the fact that the functionality offered
+by the DESCRIBE statement can only be described as basic: only the SELECT
+clause of the SELECT statement is described (and then, it also needs to be done
+twice! once to get the select list count, and a second to get the actual
+select list, once all the sqlvars have been allocated)
+Oooops! back to the important stuff: the upshot of this is that inserts are
+not described, hence there's no way of knowing whether placeholders need
+conversions before being passed to the engine. The moral of the story is
+simple - when passing stuff to the db2 engine, you have to know what needs
+converting, and have to take care of the conversion yourself.
+
+DB2 has a limit of one connection per database per process, although,
+unlike the db2 clp, connections can be renamed.

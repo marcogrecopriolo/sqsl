@@ -1,0 +1,31 @@
+SQSL CLI DB2 data source V0.9 release notes			Jan 5, 2009
+
+This data source ought to be considered alpha:- I really haven't tested it
+that much. This is my excuse for the sketchy documentation.
+I will probably go over it again one day. Then again, given my current track
+record, chances are that I will not.
+
+Build problems
+The bulk of those arises from the DB2 environment being incorrectly set.
+Hopefully the build script ought to terminate early, but it is not uncommon
+to see that the C compiler tries to link Informix header files rather than DB2.
+
+Connection options
+I haven't found a way to implement exclusive connections. If you need those,
+use the db2sqc source. In principle you should be able to use the db2cli and
+db2sqc sources at the same time, however whether this works for you or not
+very much depends on the DB2 version you are using, and is beyond my control.
+
+SQL additions
+Altough not really part of V7 DB2 UDB advertised SQL syntax, this source does
+support the CHANGE ISOLATION statement. SET CURRENT ISOLATION has made it in
+V8 anyhow.
+
+Further features
+Decimals, dates, times and timestamps are converted onto the corresponding
+Informix types on the fly, and viceversa.
+
+Limitations
+As stated earlier, EXCLUSIVE connections are not implemented at this time.
+DB2 has a limit of one connection per database per process, although,
+unlike the db2 clp, connections can be renamed.

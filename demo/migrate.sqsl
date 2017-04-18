@@ -1,0 +1,83 @@
+{ initialize some vars }
+let maxproc=10;
+let dstdb="informix@rules";
+let srcdb="db2maybe";
+let srcu="";
+let srcpwd="<*passwd "enter the source db password, here"*>";
+let dstu="";
+let dstpwd="<*passwd "enter the dest db password, here"*>";
+let maxtab=0;
+
+{ load source and dest table names }
+foreach read from "/tmp/migratetab" pattern delimited
+  into src(maxtab), dst(maxtab), cols(maxtab);
+    let maxtab=maxtab+1;
+done;
+if (maxproc>maxtab);
+    let maxproc=maxtab;
+fi;
+
+{ while we have tables and have fired enough children,
+  assign a child to a table }
+let i=0;
+let t=0;
+while (t<maxtab);
+    while (i<maxproc);
+	let p=fork;
+
+	{ the child connects and moves data }
+	if (p=0);
+	    whenever error continue;
+	    output to "/dev/null";
+	    connect to srcdb <+get case when (length(srcu)>0)
+					then "user srcu using srcpwd" end+>
+		source db2sqc;
+	    connect to dstdb <+get case when (length(dstu)>0)
+					then "user dstu using dstpwd" end+>
+		source ifmx;
+	    let c=1;
+	    let collist="?";
+	    while (c<cols(t));
+		let collist=collist||", ?";
+		let c=c+1;
+	    done;
+	    select * from <+get src(t)+> connection srcdb
+		insert into <+get dst(t)+> values (<+get collist+>)
+		    connection dstdb;
+	    if (dbinfo("sqlca.sqlerrd2"));
+		exit 1;
+	    else;
+		exit 0;
+	    fi;
+
+	{ the parent just adds the child and table to the child list,
+	  and skips to next  }
+	elif (p<0);
+	    display "child ", i, " error ", dbinfo("errno");
+
+	    { ought to exit here, but we'll carry on }
+
+	else;
+	    let tb(p)=t;
+	    let i=i+1;
+	    let t=t+1;
+	fi;
+    done;
+
+    { when child list full, just wait for one to finish,
+      before spawning another }
+    let p=wait;
+    if (dbinfo("$?"));
+	display "migration of ", src(tb(p)), " to ", dst(tb(p)), " failed";
+    fi;
+    let i=i-1;
+done;
+
+{ and finally just wait for the remaining children }
+while (i);
+    let p=wait;
+    if (dbinfo("$?"));
+	display "migration of ", src(tb(p)), " to ", dst(tb(p)), " failed";
+    fi;
+    let i=i-1;
+done

@@ -1,0 +1,19 @@
+database sysmaster;
+database <+lone select name from sysdatabases+>;
+select colname, colno, decode(mod(coltype, 256),
+  0, 'Char', 1, 'Smallint', 2, 'Integer', 3, 'Float', 4, 'Smallfloat',
+  5, 'Decimal', 6, 'Serial', 7, 'Date', 8, 'Money', 10, 'Datetime',
+  11, 'Byte', 12, 'Text', 13, 'Varchar', 14, 'Interval',
+  'Unknown'), decode(mod(coltype, 256),
+  0, collength||'', 5, round(collength/256,0) || '.' || mod(coltype, 256),
+  8, round(collength/256,0) || '.' || mod(collength, 256),
+  13, mod(collength, 256) || ',' || round(collength/256, 0), ''), case
+  when (coltype>255) then 'No'
+  else 'Yes' end
+  from syscolumns
+  where tabid=<+coded select tabid, tabname from systables order by tabid+>
+  order by colno
+  format full "%-18s| |%-16s %-7s %-6s"
+    headers "Name", "", "Type", "Length", "Nulls
+     ";
+close database

@@ -1,0 +1,14 @@
+database sysmaster;
+database <+lone select name from sysdatabases+>;
+select tabname, tabid, partnum, owner, created, nrows, case
+  when (tabtype="V") then 'View'
+  when (tabtype=" " or tabtype is null) then 'GLS/ver'
+  when (tabtype="S") then 'Synonym'
+  when (partnum=0) then 'Fragmented'
+  else 'Plain' end
+  from systables
+order by tabid
+  format full "%-18s %5i |0x%08x %8s [ddd, dd mmm yyyy] %8i %-7.7s"
+    headers "Name", "Tabid", "Partnum", "Owner", "Created", "Rows", "Type
+     ";
+close database

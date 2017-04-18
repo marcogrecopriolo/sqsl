@@ -1,0 +1,1415 @@
+/*
+	DB2SRC.sqc  -  SQSL interpreter db2 dynamic sql sql/c driver
+
+	The 4glWorks application framework
+	The Structured Query Scripting Language
+	Copyright (C) 1992-2017 Marco Greco (marco@4glworks.com)
+
+	Initial release: Mar 03
+	Current release: Jan 17
+
+	This library is free software; you can redistribute it and/or
+	modify it under the terms of the GNU Lesser General Public
+	License as published by the Free Software Foundation; either
+	version 2.1 of the License, or (at your option) any later version.
+
+	This library is distributed in the hope that it will be useful,
+	but WITHOUT ANY WARRANTY; without even the implied warranty of
+	MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+	Lesser General Public License for more details.
+
+	You should have received a copy of the GNU Lesser General Public
+	License along with this library; if not, write to the Free Software
+	Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
+*/
+
+/* FIXME in & out da: convert decimals properly */
+/* FIXME default connection */
+/* FIXME connection private data */
+
+#include <string.h>
+#include <stdlib.h>
+#include <sys/types.h>
+#include <sql.h>
+#include <sqlenv.h>
+#include <sqlcodes.h>
+#include <sqlda.h>
+#include "cosdc.h"
+#include "ccmnc.h"
+#include "cfnmc.h"
+#include "chstc.h"
+#include "coslc.h"
+#include "csqrc.h"
+#include "crxcc.h"
+#include "crqxd.h"
+#include "cxslc.h"
+#include "db2src.h"
+
+EXEC SQL INCLUDE sqlca;
+
+#define NONOCHARS "\n\r\t"	/* characters db2 doesn't like */
+#define DTIMESIZE 32		/* multiple of 8, needs to be large enough to 
+				   accomodate datetimes & decimals */
+#define CNVSTRSIZE 32		/* as above, thankyou */
+
+typedef struct fgw_db2stmt
+{
+    int stmtid;			/* statement identifier */
+    int maskoff;		/* for quick mask operations */
+    int stmtmask;
+    int	stmttype;		/* statement type (internally handled) */
+    char *outbuf;		/* data returned from engine */
+    int colcount;		/* sqlda's could be doubled, you see... */
+    struct sqlda *sqlda_out;	/* output sqlda area */
+    char *inbuf;		/* placeholders buffer */
+    struct sqlda *sqlda_in;	/* input sqlda area */
+    exprstack_t *exprlist;	/* stack containing one row of data */
+} fgw_db2stmttype;
+
+typedef struct fgw_stmtmask
+{
+    int mask[4];
+} fgw_stmtmasktype;
+
+/*
+** package names & isolations
+*/
+static struct pkg
+{
+    int val;
+    char *name;
+} packages[] = {
+    SQL_UNCOM_READ, "FGWDB2UR",
+    SQL_CURSOR_STAB, "FGWDB2CS",
+    SQL_REP_READ, "FGWDB2RR",
+    SQL_READ_STAB, "FGWDB2RS",
+    0, NULL
+};
+
+/*
+** the db2 esql/c precompiler does not allow statement or cursor names to be
+** stored on char variables: cursors and statements are static, have fixed
+** names and are described in a package, hence the hack
+*/
+    EXEC SQL DECLARE uc01 CURSOR FOR sc01;
+    EXEC SQL DECLARE uc02 CURSOR FOR sc02;
+    EXEC SQL DECLARE uc03 CURSOR FOR sc03;
+    EXEC SQL DECLARE uc04 CURSOR FOR sc04;
+    EXEC SQL DECLARE uc05 CURSOR FOR sc05;
+    EXEC SQL DECLARE uc06 CURSOR FOR sc06;
+    EXEC SQL DECLARE uc07 CURSOR FOR sc07;
+    EXEC SQL DECLARE uc08 CURSOR FOR sc08;
+    EXEC SQL DECLARE uc09 CURSOR FOR sc09;
+    EXEC SQL DECLARE uc10 CURSOR FOR sc10;
+    EXEC SQL DECLARE uc11 CURSOR FOR sc11;
+    EXEC SQL DECLARE uc12 CURSOR FOR sc12;
+    EXEC SQL DECLARE uc13 CURSOR FOR sc13;
+    EXEC SQL DECLARE uc14 CURSOR FOR sc14;
+    EXEC SQL DECLARE uc15 CURSOR FOR sc15;
+    EXEC SQL DECLARE uc16 CURSOR FOR sc16;
+    EXEC SQL DECLARE uc17 CURSOR FOR sc17;
+    EXEC SQL DECLARE uc18 CURSOR FOR sc18;
+    EXEC SQL DECLARE uc19 CURSOR FOR sc19;
+    EXEC SQL DECLARE uc20 CURSOR FOR sc20;
+    EXEC SQL DECLARE uc21 CURSOR FOR sc21;
+    EXEC SQL DECLARE uc22 CURSOR FOR sc22;
+    EXEC SQL DECLARE uc23 CURSOR FOR sc23;
+    EXEC SQL DECLARE uc24 CURSOR FOR sc24;
+    EXEC SQL DECLARE uc25 CURSOR FOR sc25;
+    EXEC SQL DECLARE uc26 CURSOR FOR sc26;
+    EXEC SQL DECLARE uc27 CURSOR FOR sc27;
+    EXEC SQL DECLARE uc28 CURSOR FOR sc28;
+    EXEC SQL DECLARE uc29 CURSOR FOR sc29;
+    EXEC SQL DECLARE uc30 CURSOR FOR sc30;
+    EXEC SQL DECLARE uc31 CURSOR FOR sc31;
+    EXEC SQL DECLARE uc32 CURSOR FOR sc32;
+
+    EXEC SQL DECLARE uh01 CURSOR WITH HOLD FOR sh01;
+    EXEC SQL DECLARE uh02 CURSOR WITH HOLD FOR sh02;
+    EXEC SQL DECLARE uh03 CURSOR WITH HOLD FOR sh03;
+    EXEC SQL DECLARE uh04 CURSOR WITH HOLD FOR sh04;
+    EXEC SQL DECLARE uh05 CURSOR WITH HOLD FOR sh05;
+    EXEC SQL DECLARE uh06 CURSOR WITH HOLD FOR sh06;
+    EXEC SQL DECLARE uh07 CURSOR WITH HOLD FOR sh07;
+    EXEC SQL DECLARE uh08 CURSOR WITH HOLD FOR sh08;
+    EXEC SQL DECLARE uh09 CURSOR WITH HOLD FOR sh09;
+    EXEC SQL DECLARE uh10 CURSOR WITH HOLD FOR sh10;
+    EXEC SQL DECLARE uh11 CURSOR WITH HOLD FOR sh11;
+    EXEC SQL DECLARE uh12 CURSOR WITH HOLD FOR sh12;
+    EXEC SQL DECLARE uh13 CURSOR WITH HOLD FOR sh13;
+    EXEC SQL DECLARE uh14 CURSOR WITH HOLD FOR sh14;
+    EXEC SQL DECLARE uh15 CURSOR WITH HOLD FOR sh15;
+    EXEC SQL DECLARE uh16 CURSOR WITH HOLD FOR sh16;
+    EXEC SQL DECLARE uh17 CURSOR WITH HOLD FOR sh17;
+    EXEC SQL DECLARE uh18 CURSOR WITH HOLD FOR sh18;
+    EXEC SQL DECLARE uh19 CURSOR WITH HOLD FOR sh19;
+    EXEC SQL DECLARE uh20 CURSOR WITH HOLD FOR sh20;
+    EXEC SQL DECLARE uh21 CURSOR WITH HOLD FOR sh21;
+    EXEC SQL DECLARE uh22 CURSOR WITH HOLD FOR sh22;
+    EXEC SQL DECLARE uh23 CURSOR WITH HOLD FOR sh23;
+    EXEC SQL DECLARE uh24 CURSOR WITH HOLD FOR sh24;
+    EXEC SQL DECLARE uh25 CURSOR WITH HOLD FOR sh25;
+    EXEC SQL DECLARE uh26 CURSOR WITH HOLD FOR sh26;
+    EXEC SQL DECLARE uh27 CURSOR WITH HOLD FOR sh27;
+    EXEC SQL DECLARE uh28 CURSOR WITH HOLD FOR sh28;
+    EXEC SQL DECLARE uh29 CURSOR WITH HOLD FOR sh29;
+    EXEC SQL DECLARE uh30 CURSOR WITH HOLD FOR sh30;
+    EXEC SQL DECLARE uh31 CURSOR WITH HOLD FOR sh31;
+    EXEC SQL DECLARE uh32 CURSOR WITH HOLD FOR sh32;
+
+    EXEC SQL DECLARE c01 CURSOR FOR nc01;
+    EXEC SQL DECLARE c02 CURSOR FOR nc02;
+    EXEC SQL DECLARE c03 CURSOR FOR nc03;
+    EXEC SQL DECLARE c04 CURSOR FOR nc04;
+    EXEC SQL DECLARE c05 CURSOR FOR nc05;
+    EXEC SQL DECLARE c06 CURSOR FOR nc06;
+    EXEC SQL DECLARE c07 CURSOR FOR nc07;
+    EXEC SQL DECLARE c08 CURSOR FOR nc08;
+    EXEC SQL DECLARE c09 CURSOR FOR nc09;
+    EXEC SQL DECLARE c10 CURSOR FOR nc10;
+    EXEC SQL DECLARE c11 CURSOR FOR nc11;
+    EXEC SQL DECLARE c12 CURSOR FOR nc12;
+    EXEC SQL DECLARE c13 CURSOR FOR nc13;
+    EXEC SQL DECLARE c14 CURSOR FOR nc14;
+    EXEC SQL DECLARE c15 CURSOR FOR nc15;
+    EXEC SQL DECLARE c16 CURSOR FOR nc16;
+    EXEC SQL DECLARE c17 CURSOR FOR nc17;
+    EXEC SQL DECLARE c18 CURSOR FOR nc18;
+    EXEC SQL DECLARE c19 CURSOR FOR nc19;
+    EXEC SQL DECLARE c20 CURSOR FOR nc20;
+    EXEC SQL DECLARE c21 CURSOR FOR nc21;
+    EXEC SQL DECLARE c22 CURSOR FOR nc22;
+    EXEC SQL DECLARE c23 CURSOR FOR nc23;
+    EXEC SQL DECLARE c24 CURSOR FOR nc24;
+    EXEC SQL DECLARE c25 CURSOR FOR nc25;
+    EXEC SQL DECLARE c26 CURSOR FOR nc26;
+    EXEC SQL DECLARE c27 CURSOR FOR nc27;
+    EXEC SQL DECLARE c28 CURSOR FOR nc28;
+    EXEC SQL DECLARE c29 CURSOR FOR nc29;
+    EXEC SQL DECLARE c30 CURSOR FOR nc30;
+    EXEC SQL DECLARE c31 CURSOR FOR nc31;
+    EXEC SQL DECLARE c32 CURSOR FOR nc32;
+
+    EXEC SQL DECLARE h01 CURSOR WITH HOLD FOR nh01;
+    EXEC SQL DECLARE h02 CURSOR WITH HOLD FOR nh02;
+    EXEC SQL DECLARE h03 CURSOR WITH HOLD FOR nh03;
+    EXEC SQL DECLARE h04 CURSOR WITH HOLD FOR nh04;
+    EXEC SQL DECLARE h05 CURSOR WITH HOLD FOR nh05;
+    EXEC SQL DECLARE h06 CURSOR WITH HOLD FOR nh06;
+    EXEC SQL DECLARE h07 CURSOR WITH HOLD FOR nh07;
+    EXEC SQL DECLARE h08 CURSOR WITH HOLD FOR nh08;
+    EXEC SQL DECLARE h09 CURSOR WITH HOLD FOR nh09;
+    EXEC SQL DECLARE h10 CURSOR WITH HOLD FOR nh10;
+    EXEC SQL DECLARE h11 CURSOR WITH HOLD FOR nh11;
+    EXEC SQL DECLARE h12 CURSOR WITH HOLD FOR nh12;
+    EXEC SQL DECLARE h13 CURSOR WITH HOLD FOR nh13;
+    EXEC SQL DECLARE h14 CURSOR WITH HOLD FOR nh14;
+    EXEC SQL DECLARE h15 CURSOR WITH HOLD FOR nh15;
+    EXEC SQL DECLARE h16 CURSOR WITH HOLD FOR nh16;
+    EXEC SQL DECLARE h17 CURSOR WITH HOLD FOR nh17;
+    EXEC SQL DECLARE h18 CURSOR WITH HOLD FOR nh18;
+    EXEC SQL DECLARE h19 CURSOR WITH HOLD FOR nh19;
+    EXEC SQL DECLARE h20 CURSOR WITH HOLD FOR nh20;
+    EXEC SQL DECLARE h21 CURSOR WITH HOLD FOR nh21;
+    EXEC SQL DECLARE h22 CURSOR WITH HOLD FOR nh22;
+    EXEC SQL DECLARE h23 CURSOR WITH HOLD FOR nh23;
+    EXEC SQL DECLARE h24 CURSOR WITH HOLD FOR nh24;
+    EXEC SQL DECLARE h25 CURSOR WITH HOLD FOR nh25;
+    EXEC SQL DECLARE h26 CURSOR WITH HOLD FOR nh26;
+    EXEC SQL DECLARE h27 CURSOR WITH HOLD FOR nh27;
+    EXEC SQL DECLARE h28 CURSOR WITH HOLD FOR nh28;
+    EXEC SQL DECLARE h29 CURSOR WITH HOLD FOR nh29;
+    EXEC SQL DECLARE h30 CURSOR WITH HOLD FOR nh30;
+    EXEC SQL DECLARE h31 CURSOR WITH HOLD FOR nh31;
+    EXEC SQL DECLARE h32 CURSOR WITH HOLD FOR nh32;
+
+XSL_STATE
+
+/*
+**  initialize shared object
+*/
+DLLDECL int sqd_init(XSL_PARMS)
+{
+    XSL_SETSTATE
+    return SO_MASK|SO_SRCFLG;
+}
+
+/*
+** bind packages
+** While we are at it, we also grant to public (bind is not a prep option)
+*/
+static int sqd_bindop()
+{
+    struct sqlopt *o;
+    struct sqlchar *n, *p;
+    char fname[513], *c;
+    int i, l, r=0;
+
+    if ((o=(struct sqlopt *) malloc(sizeof(struct sqlopt)+
+					2*sizeof(struct sqloptions))) &&
+	    (n=(struct sqlchar *) malloc(sizeof(struct sqlchar)+8)) &&
+	    (p=(struct sqlchar *) malloc(sizeof(struct sqlchar)+8)))
+    {
+	if (!(c=(char *) getenv(FGW_RESOURCEDIR)))
+	    c=".";
+	l=sizeof(fname)-strlen(c)-1;
+	fname[512]='\0';
+	strncpy((char *) &fname, c, (l>0? l: 0));
+	l=sizeof(fname)-strlen(fname)-1;
+	strncat((char *) &fname, SL_SLASH, (l>0? l: 0));
+	strncat((char *) &fname, "fgwdb2.bnd", (l>0? l: 0));
+	strcpy((char *) &p->data, "public");
+	p->length=strlen((char *) &p->data);
+	o->header.allocated=2;
+	o->header.used=2;
+	o->option[0].type=SQL_COLLECTION_OPT;
+	o->option[0].val=(sqluintptr) n;
+	o->option[1].type=SQL_ISO_OPT;
+	o->option[2].type=SQL_GRANT_OPT;
+	o->option[2].val=(sqluintptr) p;
+	for (i=0; packages[i].name; i++)
+	{
+	     strcpy((char *) &n->data, packages[i].name);
+	     n->length=strlen((char *) &n->data);
+	     o->option[1].val=packages[i].val;
+	     sqlabndx(fname, NULL, o, &sqlca);
+	     if (r=sqlca.sqlcode)
+		break;
+	}
+	if (r)
+	    EXEC SQL ROLLBACK;
+	else
+	    EXEC SQL COMMIT;
+    }
+    if (o)
+	 free(o);
+    if (n);
+	free(n);
+    if (p)
+	free(p);
+    return r;
+}
+
+/*
+**  connect to an engine
+*/
+DLLDECL void sqd_connect(host, as, user, passwd, opt, ca, private_area)
+/*
+** DB2 esql/c precompiler is not the hottest thing when it comes
+** to declare sections, or pointers...
+*/
+EXEC SQL BEGIN DECLARE SECTION;
+char (*host)[256];
+char (*as)[256];
+char (*user)[256];
+char (*passwd)[256];
+EXEC SQL END DECLARE SECTION;
+char *opt;
+ca_t *ca;
+char **private_area;
+{
+    int exclusive=0, r, rc;
+    pid_t pid;
+EXEC SQL BEGIN DECLARE SECTION;
+    char (*h)[256], n[256];
+EXEC SQL END DECLARE SECTION;
+
+    if (opt)
+	exclusive=db2api_parser(opt, 1, &ca->sqlcode);
+    if (ca->sqlcode)
+	return;
+    h=as && !host? as: host;
+    if (!h)
+    {
+	ca->sqlcode=RC_NIMPL;
+	return;
+    }
+
+/*
+** attempt to bind the packages (need one per isolation level)
+** Now - there's no API call to test for the presence of a package: need to
+** select from sysibm.syspackages, which requires the package to be there
+** to start with!
+**/
+#ifndef SQC_NEEDSFORK
+    if (exclusive)
+    {
+	if (user)
+	    EXEC SQL connect to :*host in exclusive mode
+		user :*user using :*passwd;
+	else
+	    EXEC SQL connect to :*host in exclusive mode;
+    }
+    else
+    {
+	if (user)
+	    EXEC SQL connect to :*h user :*user using :*passwd;
+	else
+	    EXEC SQL connect to :*h;
+    }
+    if (ca->sqlcode=sqlca.sqlcode)
+    {
+/*
+** Interestingly V9.7 maintains an open connection even in case of
+** authentication failure which messes up a fair few things, so we
+** have to disconnect anyhow
+*/
+	EXEC SQL disconnect :host;
+	return;
+    }
+/*
+** now we innocently probe systables - if we can select, pkg ok
+*/
+    EXEC SQL SELECT NAME into :n
+		FROM SYSIBM.SYSTABLES
+		WHERE NAME='SYSTABLES';
+    r=sqlca.sqlcode;
+/*
+** get rid of locks on systables, and avoid stray SQL0428 errors
+*/
+    EXEC SQL ROLLBACK;
+/*
+** if all fine, or not a package error, then we're done
+** FIXME: maybe we don't want to rebind on timestamp error: eg app is
+** older version
+*/
+    if (r==-805 || r==-818)
+	ca->sqlcode=sqd_bindop();
+
+#else
+/*
+** In Version 7, type 2 connections can't do useful (sic!) things like binding
+** packages even if precompiled using syncpoint onephase.
+** Since we might be already connected somewhere else (can't switch to type 1)
+** we are forced to fork a child...
+** Things are made more complicated by the EXCLUSIVE clause: can't connect
+** in exclusive mode first and then find out that we need to fork a child
+** to bind a package, hence
+**
+** first, if not EXCLUSIVE, we attempt a connection ourselves
+*/
+    if (!exclusive)
+    {
+	if (user)
+	    EXEC SQL connect to :*h user :*user using :*passwd;
+	else
+	    EXEC SQL connect to :*h;
+	if (ca->sqlcode=sqlca.sqlcode)
+	    return;
+/*
+** now we innocently probe systables - if we can select, pkg ok
+*/
+	EXEC SQL SELECT NAME into :n
+		   FROM SYSIBM.SYSTABLES
+		      WHERE NAME='SYSTABLES';
+	r=sqlca.sqlcode;
+/*
+** get rid of locks on systables, and avoid stray SQL0428 errors
+*/
+	EXEC SQL ROLLBACK;
+/*
+** if all fine, or not a package error, then we're done
+** FIXME: maybe we don't want to rebind on timestamp error: eg app is
+** older version
+*/
+	if (!r || (r!=-805 && r!=-818))
+	    goto allcool;
+    }
+/*
+** if the select has failed with a package error, then we need to rebind
+** if EXCLUSIVE we have the child do the test too
+**
+** FIXME: this won't work on NT's simulated fork because the child
+** doesn't have this dll loaded. This only applies to V7, which is out of
+** support (db2sqc build on native nt / V7 currently disabled)
+*/
+    if (!(pid=fgw_fork(NULL, sqd_bindop)))
+    {
+	struct sqle_conn_setting s[1];
+	struct sqlchar *n;
+
+	s[0].type=SQL_CONNECT_TYPE;
+	s[0].value=SQL_CONNECT_1;
+	sqlesetc(&s[0], 1, &sqlca);
+	if (user)
+	    EXEC SQL connect to :*host user :*user using :*passwd;
+	else
+	    EXEC SQL connect to :*host;
+	if (exclusive)
+	{
+	    EXEC SQL SELECT NAME INTO :n
+			FROM SYSIBM.SYSTABLES
+			   WHERE NAME='SYSTABLES';
+/* FIXME: ditto */
+	    if (!sqlca.sqlcode || (sqlca.sqlcode!=-805 && sqlca.sqlcode!=-818))
+		exit(0);
+	}
+	IGNORE sqd_bindop();
+	exit(0);
+    }
+/*
+** wait for child to finish binding
+*/
+    if (pid>0)
+	IGNORE fgw_waitpid(pid, &rc);
+/*
+** finally, if using the EXCLUSIVE clause, we attempt the connection
+*/
+    if (exclusive)
+    {
+	if (user)
+	    EXEC SQL connect to :*host in exclusive mode
+		user :*user using :*passwd;
+	else
+	    EXEC SQL connect to :*host in exclusive mode;
+	if (ca->sqlcode=sqlca.sqlcode)
+	    return;
+    }
+#endif
+
+allcool:
+    if (*private_area=malloc(sizeof(fgw_stmtmasktype)))
+	memset(*private_area, 0, sizeof(fgw_stmtmasktype));
+}
+ 
+/*
+** set current connection
+*/
+DLLDECL void sqd_setconnection(host, name, ca, private_area)
+char (*host)[256];
+EXEC SQL BEGIN DECLARE SECTION;
+char (*name)[256];
+EXEC SQL END DECLARE SECTION;
+ca_t *ca;
+char *private_area;
+{
+/*
+** ditto, and worse!
+*/
+    if (host)
+	EXEC SQL set connection :*host;
+    else if (name)
+	EXEC SQL set connection :*name;
+    else
+	sqlca.sqlcode=RC_NIMPL;
+    ca->sqlcode=sqlca.sqlcode;
+}
+ 
+/*
+** disconnect from engine
+*/
+DLLDECL void sqd_disconnect(host, name, ca, private_area)
+char (*host)[256];
+char (*name)[256];
+ca_t *ca;
+char *private_area;
+{
+/*
+** ditto
+*/
+    if (host==(void *) -1 || name==(void *) -1)
+	EXEC SQL disconnect all;
+    else if (host)
+	EXEC SQL disconnect :*host;
+    else if (name)
+	EXEC SQL disconnect :*name;
+    else
+	sqlca.sqlcode=RC_NIMPL;
+    ca->sqlcode=sqlca.sqlcode;
+    if (private_area)
+	free(private_area);
+}
+
+/*
+**  instantiate stmt structure
+*/
+DLLDECL fgw_db2stmttype *sqd_newstatement()
+{
+    fgw_db2stmttype *st;
+    int i;
+
+    if ((st=(fgw_db2stmttype *) malloc(sizeof(fgw_db2stmttype)))!=NULL)
+	memset(st, 0, sizeof(fgw_db2stmttype));
+    return st;
+}
+
+/*
+**  free used statement resources
+*/
+DLLDECL void sqd_freestatement(st, clean)
+fgw_stmttype *st;
+int clean;
+{
+    struct fgw_db2stmt *st_p;
+    int i;
+    struct sqlvar *c;
+    fgw_stmtmasktype *stmtmask=(fgw_stmtmasktype *) st->con->private_area;
+
+    if (st && (st_p=(fgw_db2stmttype *) st->sqlstmt))
+    {
+	if (clean)
+	{
+/*
+** can't have statement names stored in char variables, hence the hack
+*/
+	    if (st->curstate>=ST_NEWLYOPENED)
+/*		EXEC SQL CLOSE :st_p->stmtid; */
+	    {
+		sqlastrt(sqla_program_id, &sqla_rtinfo, &sqlca);
+		sqlacall((unsigned short)20, st_p->stmtid, 0, 0, 0L);
+		sqlastop(0L);
+	    }
+	}
+	if (st_p->sqlda_out)
+	    free(st_p->sqlda_out);
+	if (st_p->sqlda_in)
+	    free(st_p->sqlda_in);
+	if (st_p->outbuf)
+	    free(st_p->outbuf);
+	if (st_p->inbuf)
+	    free(st_p->inbuf);
+	if (st_p->exprlist)
+	    free(st_p->exprlist);
+/*
+** mark statement as unused
+*/
+	if (st_p->stmtid && stmtmask)
+	    stmtmask->mask[st_p->maskoff]&=~st_p->stmtmask;
+	free(st_p);
+    }
+}
+
+/*
+**  mark statement resources for later usage
+*/
+DLLDECL void sqd_closestatement(st)
+fgw_stmttype *st;
+{
+    struct fgw_db2stmt *st_p;
+    int i;
+    struct sqlvar *c;
+
+    if (st && (st_p=(fgw_db2stmttype *) st->sqlstmt) &&
+/*
+** can't have statement names stored in char variables, hence the hack
+*/
+	st->curstate>=ST_NEWLYOPENED)
+    {
+/*	EXEC SQL CLOSE :st_p->stmtid; */
+	sqlastrt(sqla_program_id, &sqla_rtinfo, &sqlca);
+	sqlacall((unsigned short)20, st_p->stmtid, 0, 0, 0L);
+	sqlastop(0L);
+	st->curstate=ST_DECLARED;
+    }
+}
+
+/*
+** set cursor name
+*/
+DLLDECL void sqd_setcursor(st, curs)
+fgw_stmttype *st;
+char *curs;
+{
+    char *end;
+    struct fgw_db2stmt *st_p;
+
+    switch (*curs++)
+    {
+      case 'c':
+      case 'C':
+	if (st->options & SO_WITHHOLD)
+	    goto badexit;
+	break;
+      case 'H':
+      case 'h':
+	if (st->options & SO_WITHHOLD)
+	    break;
+      default:
+badexit:
+	st->ca->sqlcode=RC_INCUR;
+	return;
+    }
+    if (!(st_p=(fgw_db2stmttype *) st->sqlstmt))
+	goto badexit;
+    st_p->stmtid=strtol(curs, &end, 10);
+    if (*end || st_p->stmtid<1 || st_p->stmtid>32)
+	goto badexit;
+}
+ 
+/*
+** allocates da
+*/
+static int init_da(daptr, sqln)
+struct sqlda **daptr;
+int sqln;
+{
+    *daptr=(struct sqlda *) malloc(SQLDASIZE(sqln));
+    if (!*daptr)
+	return RC_NOMEM;
+    memset(*daptr, 0, SQLDASIZE(sqln));
+    strncpy((*daptr)->sqldaid, "SQLDA   ", sizeof ((*daptr)->sqldaid));
+    (*daptr)->sqldabc=(sqlint32) SQLDASIZE(sqln);
+    (*daptr)->sqln=sqln;
+    (*daptr)->sqld=0;
+    return 0;
+}
+
+/*
+**  prepare statement
+*/
+DLLDECL void sqd_prepare(st, query)
+fgw_stmttype *st;
+char *query;
+{
+    struct fgw_db2stmt *st_p;
+    char *nq=query;
+    fgw_stmtmasktype *stmtmask=(fgw_stmtmasktype *) st->con->private_area;
+
+/*
+** ditto
+*/
+    if (st && st->curstate==ST_UNINITIALIZED &&
+	(st_p=(fgw_db2stmttype *) st->sqlstmt))
+    {
+	memset(st->ca, 0, sizeof(ca_t));
+/*
+** api kind of statement?
+*/
+	if (st_p->stmttype=db2api_parser(query, 0, &st->ca->sqlcode))
+	{
+	    st->curstate=ST_EXECUTABLE;
+	    return;
+	}
+	else if (st->ca->sqlcode)
+	    return;
+/*
+** set cursor id
+*/
+	if (st->options | SO_WITHHOLD)
+	    st_p->maskoff++;
+	if (st_p->stmtid)
+	{
+	    st_p->maskoff=2;
+	    st_p->stmtmask=(1<<st_p->stmtid);
+
+/* FIXME we should have errored earlier on if we weren't able to allocate
+   memory for this connection statement mask, but this is good enough */
+	    if (!stmtmask || stmtmask->mask[st_p->maskoff] & st_p->stmtmask)
+	    {
+		st->ca->sqlcode=RC_USCUR;
+		return;
+	    }
+	}
+	else
+	{
+	    st_p->stmtid=1;
+	    st_p->stmtmask=1;
+	    while (stmtmask->mask[st_p->maskoff] & st_p->stmtmask)
+	    {
+		if (st_p->stmtid==32)
+		{
+		    st->ca->sqlcode=RC_NOCUR;
+		    return;
+		}
+		st_p->stmtid++;
+		st_p->stmtmask<<=1;
+	    }
+	}
+	stmtmask->mask[st_p->maskoff]|=st_p->stmtmask;
+	st_p->stmtid*=st_p->maskoff*32;
+	if (sqlca.sqlcode=init_da(&st_p->sqlda_out, 1))
+	    goto badexit;
+/*
+** db2 doesn't like certain chars so if we find any, we just get
+** them out of the way
+** FIXME: this fixes string constants too, while it probably ought to
+** return an error
+*/
+	if (strpbrk(query, NONOCHARS))
+	{
+	    char *s, *d;
+
+	    if (!(nq=(char *) malloc(strlen(query)+1)))
+	    {
+		st->ca->sqlcode=RC_NOMEM;
+		return;
+	    }
+	    for (s=query, d=nq; *s; s++, d++)
+	    {
+		if (strchr(NONOCHARS, *s))
+		    *d=' ';
+		else
+		    *d=*s;
+	    }
+	    *d='\0';
+	}
+/*	EXEC SQL PREPARE :sname FROM :nq; */
+	sqlastrt(sqla_program_id, &sqla_rtinfo, &sqlca);
+	sqlastls(0, nq, 0L);
+	sqlacall((unsigned short)27, st_p->stmtid, 0, 0, 0L);
+	sqlastop(0L);
+	if (nq!=query)
+	    free(nq);
+	if (sqlca.sqlcode<0)
+	   goto badexit;
+/*	EXEC SQL DESCRIBE :st_p->stmtname INTO :*st_p->sqlda_out; */
+	sqlastrt(sqla_program_id, &sqla_rtinfo, &sqlca);
+	sqlausda(1, st_p->sqlda_out, 0L);
+	sqlacall((unsigned short)22, st_p->stmtid, 0, 1, 0L);
+	sqlastop(0L);
+	if (sqlca.sqlcode!=0 && sqlca.sqlcode!=SQL_RC_W236 &&
+	    sqlca.sqlcode!=SQL_RC_W237 && sqlca.sqlcode!=SQL_RC_W238 &&
+	    sqlca.sqlcode!=SQL_RC_W239)
+	    goto badexit;
+	if ((st_p->colcount=st_p->sqlda_out->sqld)>0)
+	{
+	    long colsize, bufsize=0;
+	    int i;
+	    struct sqlvar *c;
+	    exprstack_t *e;
+	    short *n;
+
+/*
+** need to reallocate sqlda
+*/
+	    if (sqlca.sqlcode!=0)
+	    {
+		int d=st_p->sqlda_out->sqld;
+		free(st_p->sqlda_out);
+		if (sqlca.sqlcode!=SQL_RC_W236)
+		    d*=2;
+		if (sqlca.sqlcode=init_da(&st_p->sqlda_out, d))
+		    goto badexit;
+/*
+** and to reprepare again to fill the sqlvar structs
+*/
+		sqlastrt(sqla_program_id, &sqla_rtinfo, &sqlca);
+		sqlausda(1, st_p->sqlda_out, 0L);
+		sqlacall((unsigned short)22, st_p->stmtid, 0, 1, 0L);
+		sqlastop(0L);
+	    }
+/*
+** allocate expression holder
+*/
+	    i=sizeof(exprstack_t)*st_p->colcount;
+	    if (!(st_p->exprlist=(exprstack_t *) malloc(i)))
+	    {
+		sqlca.sqlcode=RC_NOMEM;
+		goto badexit;
+	    }
+	    memset(st_p->exprlist, 0, i);
+/*
+** Now's the tricky bit: first we scan the sqlda area converting types &
+** adjusting sizes if necessary, adding up the total memory required
+*/
+	    for (i=0, c=st_p->sqlda_out->sqlvar,
+		 e=st_p->exprlist; i<st_p->colcount; i++, c++, e++)
+	    {
+		c->sqldata=NULL;
+		switch (c->sqltype)
+		{
+		  case SQL_TYP_BIGINT:
+		  case SQL_TYP_NBIGINT:
+		  case SQL_TYP_INTEGER:
+		  case SQL_TYP_NINTEGER:
+		  case SQL_TYP_SMALL:
+		  case SQL_TYP_NSMALL:
+		    e->type=CINTTYPE;
+		    c->sqltype=SQL_TYP_NINTEGER;
+		    c->sqllen=sizeof(int);
+		    c->sqldata=(char *) &e->val.intvalue;
+		    break;
+		  case SQL_TYP_DECIMAL:
+		  case SQL_TYP_NDECIMAL:
+		    e->type=CDECIMALTYPE;
+		    e->val.string=(char *) bufsize; /* just an offset for now! */
+		    colsize=1+(((char *) &c->sqllen)[0]| 7);
+		    bufsize+=DTIMESIZE+colsize;
+		    break;
+		  case SQL_TYP_FLOAT:
+		  case SQL_TYP_NFLOAT:
+		    e->type=CDOUBLETYPE;
+		    c->sqllen=sizeof(double);
+		    c->sqldata=(char *) &e->val.real;
+		    break;
+		  case SQL_TYP_BLOB:
+		  case SQL_TYP_NBLOB:
+		    e->type=FGWBYTETYPE;
+		    e->val.string=(char *) bufsize; /* just an offset for now! */
+		    colsize=1+(GETSQLDALONGLEN(st_p->sqlda_out, i) | 7);
+		    bufsize+=colsize;
+		    break;
+		  case SQL_TYP_CLOB:
+		  case SQL_TYP_NCLOB:
+		  case SQL_TYP_DBCLOB:
+		  case SQL_TYP_NDBCLOB:
+		    e->type=CSTRINGTYPE;
+		    e->val.string=(char *) bufsize; /* just an offset for now! */
+		    colsize=1+((1+GETSQLDALONGLEN(st_p->sqlda_out, i)) | 7);
+		    bufsize+=colsize;
+		    break;
+		  case SQL_TYP_TIME:
+		  case SQL_TYP_NTIME:
+		  case SQL_TYP_STAMP:
+		  case SQL_TYP_NSTAMP:
+		    e->type=CDTIMETYPE;
+		    e->val.string=(char *) bufsize; /* just an offset for now! */
+		    c->sqltype=SQL_TYP_NCSTR;
+		    c->sqllen++;	/* take into account string terminator */
+		    colsize=1+(c->sqllen | 7);
+		    bufsize+=DTIMESIZE+colsize;
+		    break;
+		  case SQL_TYP_DATE:
+		  case SQL_TYP_NDATE:
+		    e->type=CDATETYPE;
+/* dirty, as we will overwrite the string union member with a date, but works */
+		    e->val.string=(char *) bufsize; /* just an offset for now! */
+		    c->sqltype=SQL_TYP_NCSTR;
+		    c->sqllen++;	/* take into account string terminator */
+		    colsize=1+(c->sqllen | 7);
+		    bufsize+=colsize;
+		    break;
+		  default:
+		    e->type=CSTRINGTYPE;
+		    e->val.string=(char *) bufsize; /* just an offset for now! */
+		    c->sqltype=SQL_TYP_NCSTR;
+		    colsize=1+(c->sqllen | 7);
+		    bufsize+=colsize;
+		    break;
+		}
+	    }
+/*
+** then we allocate memory & fixup the pointers
+*/
+	    if (!(st_p->outbuf=(char *) malloc(bufsize+
+					   st_p->colcount*sizeof(int))))
+	    {
+		sqlca.sqlcode=RC_NOMEM;
+		goto badexit;
+	    }
+	    for (i=st_p->colcount, c=st_p->sqlda_out->sqlvar,
+		 e=st_p->exprlist, n=(short *) (st_p->outbuf+bufsize);
+		 i; i--, c++, e++, n++)
+	    {
+		if (!c->sqldata)
+		{
+		    e->val.string+=(long) (st_p->outbuf);
+		    if (e->type==CDTIMETYPE)
+		    {
+			c->sqldata=e->val.string+DTIMESIZE;
+			if (c->sqllen>10)	/* dirty but it works */
+			    e->val.datetime->dt_qual=TU_DTENCODE(TU_YEAR, TU_F5);
+			else
+			    e->val.datetime->dt_qual=TU_DTENCODE(TU_HOUR, TU_SECOND);
+		    }
+		    else if (e->type==CDECIMALTYPE)
+			c->sqldata=e->val.string+DTIMESIZE;
+		    else
+			c->sqldata=e->val.string;
+		}
+		c->sqlind=n;
+	    }
+/*	    if (st->options & SO_WITHHOLD)
+		EXEC SQL DECLARE :st_p->curname
+		    CURSOR WITH HOLD FOR :st_p->stmtname;
+	    else
+		EXEC SQL DECLARE :st_p->curname CURSOR FOR :st_p->stmtname;
+	    if (sqlca.sqlcode!=0)
+		goto badexit;
+*/	    st->curstate=ST_DECLARED;
+	    st->options|=SO_STATICBUF;
+	    sqlca.sqlcode=0;
+	}
+/*
+** just an executable statement
+*/
+	else
+	{
+	    st->curstate=ST_EXECUTABLE;
+	    sqlca.sqlcode=0;
+	}
+badexit:
+	st->ca->sqlcode=sqlca.sqlcode;
+	st->ca->sqlerrd1=sqlca.sqlerrd[1];
+	st->ca->sqlerrd2=sqlca.sqlerrd[2];
+    }
+    else if (st)
+	st->ca->sqlcode=RC_INSID;
+}
+
+/*
+** allocates input sqlda
+*/
+DLLDECL void sqd_allocateda(st, entries)
+fgw_stmttype *st;
+int entries;
+{
+    fgw_db2stmttype *st_p=(fgw_db2stmttype *) st->sqlstmt;
+    struct sqlvar *sqlvar;
+    int i;
+    short *n;
+    char *s;
+
+    if (st->options & SO_ALLOCD)
+	return;
+    else if (st_p==NULL)
+	st->ca->sqlcode=RC_INSID;
+    else if (!init_da(&st_p->sqlda_in, entries) &&
+	     (st_p->inbuf=(char *) malloc(entries*(CNVSTRSIZE+sizeof(int)))))
+    {
+	st_p->sqlda_in->sqld=st_p->sqlda_in->sqln;
+/*
+** initialize placeholders
+*/
+	for (i=0, sqlvar=st_p->sqlda_in->sqlvar, n=(short *) st_p->inbuf,
+	     s=st_p->inbuf+entries*sizeof(int); i<entries; i++, sqlvar++, n++)
+	{
+	    sqlvar->sqltype=SQL_TYP_NCSTR;
+	    sqlvar->sqldata=s;
+	    *s='\0';
+	    s+=CNVSTRSIZE;
+	    sqlvar->sqlind=n;
+	}
+    }
+    else
+	st->ca->sqlcode=RC_NOMEM;
+}
+
+/*
+** sets next placeholder
+*/
+DLLDECL void sqd_bindda(st, entry, type, size, value)
+fgw_stmttype *st;
+int entry;
+int type;
+int size;
+char *value;
+{
+    fgw_db2stmttype *st_p=(fgw_db2stmttype *) st->sqlstmt;
+    struct sqlvar *sqlvar;
+    exprstack_t e;
+    int ind;
+
+    if (st_p==NULL || entry<0 || entry>=st_p->sqlda_in->sqld )
+	return;
+    sqlvar=st_p->sqlda_in->sqlvar+entry;
+    e.type=type;
+    e.length=size;
+    sqlvar->sqllen=size;
+    *sqlvar->sqlind=0;
+    switch (type)
+    {
+/*
+** this is a leap of faith - since inserts and updates are not described, we
+** don't have a way to see if the engine expects something specific and
+** convert (eg char to ints) or otherwise act appropriately
+**
+** what we ought to be doing is detect inserts with values clauses and 
+** placeholders in the parser and query system tables, not very efficient
+** but then what can you do?
+** this in turns poses system tables locking problems - ideally we ought to
+** switch to the uncommitted read package and then back, which means keeping
+** track of isolation levels on a per connection basis.
+*/
+      case FGWBYTETYPE:
+	sqlvar->sqltype=SQL_TYP_NBLOB;
+	sqlvar->sqldata=value;
+	e.val.string=value;
+	break;
+      case CINTTYPE:
+	sqlvar->sqltype=SQL_TYP_NINTEGER;
+	sqlvar->sqldata=value;
+	break;
+      case CDOUBLETYPE:
+	sqlvar->sqltype=SQL_TYP_NFLOAT;
+	sqlvar->sqldata=value;
+	break;
+      case CDECIMALTYPE:
+      case CMONEYTYPE:
+	st->options|=SO_BUFCNV;
+	sqlvar->sqltype=SQL_TYP_NDECIMAL;
+	e.val.string=value;
+	if (XSL_CALL(rxu_isnull)(&e))
+	{
+	    *sqlvar->sqlind=-1;
+	    sqlvar->sqllen=0;
+	}
+	else
+	{
+	    char *prec=(char *) &sqlvar->sqllen;
+	    char *scale=prec+1;
+	    unsigned char *d=(unsigned char *) sqlvar->sqldata;
+	    fgw_dec_t *dec=(fgw_dec_t *) value;
+	    int i;
+
+/*
+** set precision and scale 
+*/
+	    *scale=(unsigned char) XSL_CALL(rxu_decgetscale)(dec);
+	    *prec=(unsigned char) XSL_CALL(rxu_decgetprec)(dec);
+/*
+** copy digits bar the last odd 1
+** (currently, sqsl precision can only be even, but for completeness)
+*/
+	    for (i=0; i<((*prec)&(~1)); d++)
+	    {
+		*d=(unsigned char) XSL_CALL(rxu_decgetdigit)(dec, &i)<<4;
+		*d+=(unsigned char) XSL_CALL(rxu_decgetdigit)(dec, &i);
+	    }
+/*
+** db2 precision can only be odd
+*/
+	    if (!(*prec & 1))
+	    {
+		(*prec)++;
+		(*scale)++;
+		*d=0;
+	    }
+	    else
+		*d=(unsigned char) XSL_CALL(rxu_decgetdigit)(dec, &i)<<4;
+/*
+** set sign
+*/
+	    *d+=(unsigned char) XSL_CALL(rxu_decgetsign)(dec)>0? 0xF: 0xD;
+	}
+	return;
+      case CDATETYPE:
+	st->options|=SO_BUFCNV;
+	sqlvar->sqltype=SQL_TYP_NCSTR;
+	e.val.intvalue=*(int *) value;
+/* ditto */
+	sqlvar->sqldata=XSL_CALL(rxu_topictstring)(&e, sqlvar->sqldata, CNVSTRSIZE,
+			 		"yyyy-mm-dd", CDATETYPE, 0);
+	if (XSL_CALL(rxu_isnull)(&e))
+	{
+	    *sqlvar->sqlind=-1;
+	    sqlvar->sqllen=0;
+	}
+	else
+	    sqlvar->sqllen=strlen(sqlvar->sqldata)+1;
+	return;
+/*
+** timestamps handled here as db2 accepts ODBC format. datetimes
+** need to be either year to second/fraction or hour to second
+*/
+      default:
+	if (type!=CSTRINGTYPE)
+	    st->options|=SO_BUFCNV;
+	sqlvar->sqltype=SQL_TYP_NCSTR;
+	e.val.string=value;
+/* ditto */
+	sqlvar->sqldata=XSL_CALL(rxu_tostring)(&e, sqlvar->sqldata, &ind);
+	if (ind)
+	{
+	    *sqlvar->sqlind=-1;
+	    sqlvar->sqllen=0;
+	}
+	else
+	    sqlvar->sqllen=strlen(sqlvar->sqldata)+1;
+	return;
+    }
+    *sqlvar->sqlind=XSL_CALL(rxu_isnull)(&e)? -1: 0;
+}
+
+/*
+**  execute non select statement
+*/
+DLLDECL void sqd_immediate(st)
+fgw_stmttype *st;
+{
+    struct fgw_db2stmt *st_p;
+    int i;
+    EXEC SQL BEGIN DECLARE SECTION;
+    char (*pkgname)[30];
+    EXEC SQL END DECLARE SECTION;
+
+    if (!st)
+	return;
+    else if (!(st_p=(fgw_db2stmttype *) st->sqlstmt))
+	st->ca->sqlcode=RC_INSID;
+    else if (st->curstate!=ST_EXECUTABLE)
+	st->ca->sqlcode=RC_NEXEC;
+    else switch (st_p->stmttype)
+    {
+/*
+** and connection type 2 clients cannot run dinamically prepared
+** commit or rollbacks, even if syncpoint has been set to onephase?!
+*/
+      case FGW_COMMIT:
+	EXEC SQL COMMIT WORK;
+	break;
+      case FGW_ROLLBACK:
+	EXEC SQL ROLLBACK WORK;
+	break;
+/*
+** isolation levels are set at the package level, and there's no way to
+** dynamically change a package name, only the package schema name - so
+** we have 4 identical packages, same name different schema and isolation...
+*/
+      case FGW_UR:
+      case FGW_CS:
+      case FGW_RR:
+      case FGW_RS:
+	i=st_p->stmttype-FGW_UR;
+	strcpy((char *) &pkgname, packages[i].name);
+	EXEC SQL SET CURRENT PACKAGESET :pkgname;
+	break;
+/*
+** a real prepared statement
+*/
+      default:
+/*	EXEC SQL EXECUTE :st_p->stmtname USING DESCRIPTOR :*st_p->sqlda_in; */
+	sqlastrt(sqla_program_id, &sqla_rtinfo, &sqlca);
+	if (st_p->sqlda_in)
+	{
+	    sqlausda(1, st_p->sqlda_in, 0L);
+	    sqlacall((unsigned short)24, st_p->stmtid, 1, 0, 0L);
+	}
+	else
+	    sqlacall((unsigned short)24, st_p->stmtid, 0, 0, 0L);
+	sqlastop(0L);
+    }
+    st->ca->sqlcode=sqlca.sqlcode;
+    st->ca->sqlerrd1=sqlca.sqlerrd[1];
+    st->ca->sqlerrd2=sqlca.sqlerrd[2];
+}
+
+/*
+**  loads next row
+*/
+DLLDECL void sqd_nextrow(st)
+fgw_stmttype *st;
+{
+    struct fgw_db2stmt *st_p;
+
+    if (!st)
+	return;
+    else if (!(st_p=(fgw_db2stmttype *) st->sqlstmt))
+    {
+	st->ca->sqlcode=RC_INSID;
+	return;
+    }
+    else if (st->curstate<ST_DECLARED)
+    {
+	st->ca->sqlcode=RC_NDECL;
+	return;
+    }
+    if (st->curstate==ST_DECLARED)
+    {
+/*	EXEC SQL OPEN :st_p->curname USING DESCRIPTOR :*sqlda_in; */
+	sqlastrt(sqla_program_id, &sqla_rtinfo, &sqlca);
+	if (st_p->sqlda_in)
+	{
+	    sqlausda(1, st_p->sqlda_in, 0L);
+	    sqlacall((unsigned short)26, st_p->stmtid, 1, 0, 0L);
+	}
+	else
+	    sqlacall((unsigned short)26, st_p->stmtid, 0, 0, 0L);
+	sqlastop(0L);
+	if (sqlca.sqlcode!=0)
+	    goto badexit;
+	st->curstate=ST_NEWLYOPENED;
+    }
+/*  EXEC SQL FETCH :st_p->curname USING DESCRIPTOR :*sqlda_out; */
+    sqlastrt(sqla_program_id, &sqla_rtinfo, &sqlca);
+    sqlausda(1, st_p->sqlda_out, 0L);
+    sqlacall((unsigned short)25, st_p->stmtid , 0, 1, 0L);
+    sqlastop(0L);
+    if (!sqlca.sqlcode)
+	st->curstate=ST_OPENED;
+badexit:
+    st->ca->sqlcode=sqlca.sqlcode;
+    st->ca->sqlerrd1=sqlca.sqlerrd[1];
+    st->ca->sqlerrd2=sqlca.sqlerrd[2];
+}
+
+/*
+** returns next field in buffer
+*/
+DLLDECL exprstack_t *sqd_nexttoken(field, st_p)
+int field;
+fgw_stmttype *st_p;
+{
+    exprstack_t *e;
+    struct sqlvar *col;
+    char *c;
+
+    if (field>=((fgw_db2stmttype *) st_p->sqlstmt)->colcount)
+	return NULL;
+    col=((fgw_db2stmttype *) st_p->sqlstmt)->sqlda_out->sqlvar+field;
+    e=((fgw_db2stmttype *) st_p->sqlstmt)->exprlist+field;
+    if (*col->sqlind<0)
+	XSL_CALL(rxu_setnull)(e, e->type);
+    else switch (e->type)
+    {
+      case FGWBYTETYPE:
+	e->length=col->sqllen;
+	break;
+      case CSTRINGTYPE:
+	if (col->sqltype==SQL_TYP_NCSTR)
+	{
+	    *(e->val.string+col->sqllen)='\0';
+	    e->length=col->sqllen;
+	}
+	else
+	{
+	    e->val.string=((struct sqllob *) col->sqldata)->data;
+	    e->length=((struct sqllob *) col->sqldata)->length;
+	    *(e->val.string+e->length)='\0';
+	}
+	break;
+/*
+** sqldata gets nullified to avoid needless conversions in subsequent
+** calls over the same row+column
+*/
+      case CDTIMETYPE:
+	if (*col->sqldata)
+	{
+	    if (col->sqllen>10)			/* dirty but it works */
+	    {
+/*
+** db2 returns a 6 digit fraction and this upsets dtcvfmtasc(), however,
+** setting sqllen to 26 doesn't seem to work: fraction still comes up with
+** 6 digits!  db2, as expected, truncates the fraction to 4 digits when
+** sqllen is set to 25. To avoid any further debate, we just axe it by hand!
+*/
+		*(col->sqldata+25)='\0';
+		IGNORE XSL_CALL(rxu_cvfmtdtime)(e, col->sqldata, "%Y-%m-%d-%H.%M.%S%F5");
+	    }
+	    else
+		IGNORE XSL_CALL(rxu_cvfmtdtime)(e, col->sqldata, "%H.%M.%S");
+	    *col->sqldata='\0';
+	}
+	break;
+      case CDATETYPE:
+	if (*col->sqldata)
+	{
+	    IGNORE XSL_CALL(rxu_cvfmtdate)(e, col->sqldata, "yyyy-mm-dd");
+	    *col->sqldata='\0';
+	}
+	break;
+      case CDECIMALTYPE:
+/*
+** this code has been extrapolated from a DB2 demo program
+** in the DB2 knowledge centre.
+** decimals are not officially documented.
+** convert to string and pass a string in times of crisis...
+*/
+	if (*col->sqldata!=(char) -1)
+	{
+	    unsigned char *s=col->sqldata;
+	    int prec=((char *) &col->sqllen)[0];
+	    int scale=((char *) &col->sqllen)[1];
+	    int i, p;
+
+/*
+** last decimal digit contains sign - since we have two digits per char, it
+** follows that the precision must be odd at all times, so make it odd if
+** it isn't (topmost digit will be zero at all times in this case)
+*/
+	    if (!(prec % 2))
+		prec++;
+
+	    if  (XSL_CALL(rxu_decsetprec)(e->val.decimal, prec))
+		goto badvalue;
+	    if (XSL_CALL(rxu_decsetscale)(e->val.decimal, scale))
+		goto badvalue;
+	    for (i=0, p=0; i<prec-1; i+=2, s++)
+	    {
+		if (XSL_CALL(rxu_decsetdigit)(e->val.decimal, (*s>>4), &p))
+		    goto badvalue;
+		if (XSL_CALL(rxu_decsetdigit)(e->val.decimal, (*s & 0xF), &p))
+		    goto badvalue;
+	    }
+/*
+** add the last odd digit
+*/
+	    if (XSL_CALL(rxu_decsetdigit)(e->val.decimal, (*s>>4), &p))
+		goto badvalue;
+/*
+** set the sign. don't ask me why D or B
+*/
+	    if (XSL_CALL(rxu_decsetsign)(e->val.decimal,
+		((*s & 0xF)==0xD || (*s & 0xF)==0xB)? 0: 1))
+		goto badvalue;
+/*
+** flag that this has been done
+*/
+	    *col->sqldata=(char) -1;
+	    e->length=XSL_CALL(rxu_decgetprec)(e->val.decimal);
+	    break;
+
+badvalue:
+	    XSL_CALL(rxu_setnull)(e, CDECIMALTYPE);
+	    *col->sqldata=(char) -1;
+	}
+	break;
+    }
+    return e;
+}
+
+/*
+** returns field count
+*/
+DLLDECL int sqd_counttokens(st_p)
+fgw_stmttype *st_p;
+{
+    return ((fgw_db2stmttype *) st_p->sqlstmt)->colcount;
+}
+
+/*
+** returns error message string
+*/
+DLLDECL void sqd_errmsg(int err, char *buf, int len)
+{
+    sqlca.sqlcode=err;
+    if (sqlaintp(buf, len, (len<78? len: 78), &sqlca))
+	buf='\0';
+}
+
+/*
+** sends a break to the database engine
+*/
+DLLDECL void sqd_break()
+{
+    IGNORE sqleintr();
+}
+
+/*
+** returns a description of the selected columns
+*/
+DLLDECL void sqd_describecol(st_p, column, d)
+fgw_stmttype *st_p;
+int column;
+exprstack_t *d;
+{
+    struct sqlvar *col;
+    exprstack_t *el;
+    char *n;
+    int l;
+
+    if (column<0 ||
+        column>=((fgw_db2stmttype *) st_p->sqlstmt)->colcount)
+        memset(d, 0, sizeof(exprstack_t));
+    else
+    {
+	col=((fgw_db2stmttype *) st_p->sqlstmt)->sqlda_out->sqlvar+column;
+	n=(char *) col->sqlname.data;
+	if ((l=col->sqlname.length)==sizeof(col->sqlname.data)) 
+	    l--;
+	*(n+l)='\0';
+	el=((fgw_db2stmttype *) st_p->sqlstmt)->exprlist+column;
+	d->type=el->type;
+	switch (d->type)
+	{
+	  case CSTRINGTYPE:
+	    break;
+	  case CDECIMALTYPE:
+	    d->length=((char *) &col->sqllen)[0]+1;
+	    break;
+	  default:
+	    d->length=col->sqllen;
+	}
+	d->val.string=n;
+    }
+}

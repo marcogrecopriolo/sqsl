@@ -1,0 +1,307 @@
+#! /usr/bin/awk -f
+#	"@(#) fglpp 0.4a"
+#
+#	fglpp - A 4gl precompiler (could have called it 'mouse4gl', though)
+#
+#	The 4glWorks application framework
+#	The Structured Query Scripting Language
+#	Copyright (C) 1992-2009 Marco Greco (marco@4glworks.com)
+#
+#	Initial release: Apr 96
+#	Current release: Jul 09
+#
+#	This library is free software; you can redistribute it and/or
+#	modify it under the terms of the GNU Lesser General Public
+#	License as published by the Free Software Foundation; either
+#	version 2.1 of the License, or (at your option) any later version.
+#
+#	This library is distributed in the hope that it will be useful,
+#	but WITHOUT ANY WARRANTY; without even the implied warranty of
+#	MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+#	Lesser General Public License for more details.
+#
+#	You should have received a copy of the GNU Lesser General Public
+#	License along with this library; if not, write to the Free Software
+#	Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
+
+BEGIN	{
+
+# token separator
+# FIXME: this has different hangups on different awks, lookout for [, ], -, +, *
+	    FS="[ \t]*[[\\]\\-()+/=<>!,.*][ \t]*|[ \t]+"
+	    defines=0;
+
+# look for -D arguments
+	    for (i=1; i<ARGC; i++)
+	    {
+		if (ARGV[i] ~ /^-D/)
+		{
+		    sub("-D", "", ARGV[i])
+		    sub("=", " ", ARGV[i])
+		    $0=ARGV[i]
+		    term=$1
+		    sub(term, "")
+		    defs[term]=$0
+		    items[term]=NF-1
+		    defines++
+		}
+		else
+		    break
+	    }
+	    if (ARGC-defines<4)
+	    {
+		print "bad # of parms"
+		exit
+	    }
+
+# save include search path for later
+	    for (i=4+defines; i<ARGC; i++)
+	    {
+		pathsearch[i-3-defines]=ARGV[i]
+		ARGV[i]=""
+	    }
+
+# extract source, output globals and output source file names
+	    pathcount=ARGC-4-defines
+	    curfile=ARGV[1+defines]
+	    gf=ARGV[2+defines]
+	    of=ARGV[3+defines]
+	    ARGV[2+defines]=""
+	    ARGV[3+defines]=""
+
+# initialize a number of handy variables
+	    filestack[0]=curfile
+	    not_a_4gl=(curfile !~ /\.4gl$/)
+	    globalsdone=0
+	    inglobals=0
+	    nootherglobals=1
+	    error=0
+	    dbcount=0
+	    filepoint=0
+	    rowoutput=of
+	    nextrowoutput=of 
+	    controlstack[0]="#plain"
+	    controlstate[0]=1
+	    controlpoint=0
+
+# rats! Can't use pattern driven syntax
+	    for (;;)
+
+# read next line
+	    {
+		j=0
+		while ((i=getline <filestack[filepoint])<=0)
+		{
+		    close(filestack[filepoint])
+		    if (i && (j<pathcount) && filepoint)
+		    {
+			filestack[filepoint]=pathsearch[++j] "/" curfile
+			continue
+		    }
+		    if (inglobals==filepoint)
+		    {
+			inglobals=0
+			globalsdone=1
+			nextrowoutput=of
+		    }
+		    if (controlstack[controlpoint]=="#if" ||
+			controlstack[controlpoint]=="#else") error=1
+		    else if (controlstack[controlpoint]=="#include" ||
+			     controlstack[controlpoint]=="globals")
+			controlpoint--
+		    if (!filepoint--) exit
+		}
+		rowoutput=nextrowoutput
+
+# ifdef directive
+		if ($0 ~ /^#ifdef *.*/)
+		{
+		    n=split($0, t, "[ \t]+")
+		    if (!(filepoint||not_a_4gl)) print > of
+		    controlpoint++
+		    controlstack[controlpoint]="#if"
+		    if (controlstate[controlpoint-1]>0)
+			controlstate[controlpoint]=(t[2] in defs)
+		    else controlstate[controlpoint]=-1
+		    continue
+		}
+
+# ifndef directive
+		if ($0 ~ /^#ifndef *.*/)
+		{
+		    n=split($0, t, "[ \t]+")
+		    if (!(filepoint||not_a_4gl)) print > of
+		    controlpoint++
+		    controlstack[controlpoint]="#if"
+		    if (controlstate[controlpoint-1]>0)
+			controlstate[controlpoint]=!(t[2] in defs)
+		    else controlstate[controlpoint]=-1
+		    continue
+		}
+
+# else directive
+		if ($0 ~ /^#else/)
+		{
+		    if (controlstack[controlpoint]!="#if")
+			error=1
+		    else if (controlstate[controlpoint]!=-1)
+			controlstate[controlpoint]=!controlstate[controlpoint]
+		    controlstack[controlpoint]="#else"
+		    if (!(filepoint||not_a_4gl)) print > of
+		    continue
+		}
+
+# endif  directive
+		if ($0 ~ /^#endif/)
+		{
+		    if (controlstack[controlpoint]!="#if" &&
+			controlstack[controlpoint]!="#else")
+			error=1
+		    else controlpoint--
+		    if (!(filepoint||not_a_4gl)) print > of
+		    continue
+		}
+
+# skip non active lines
+		if (controlstate[controlpoint]<=0)
+		{
+		    if (!(filepoint||not_a_4gl)) print "" > of
+		    continue
+		}
+
+# include "filename" directive
+		if ($0 ~ /^#include *\".*\"/)
+		{
+		    n=split($0, t, "\"")
+		    if (!(filepoint||not_a_4gl)) print > of
+		    filestack[++filepoint]=t[2]
+		    curfile=t[2]
+		    controlstack[++controlpoint]="#include"
+		    controlstate[controlpoint]=1
+		    continue
+		}
+
+# defining some constant
+		if ($0 ~ /^#define/)
+		{
+		    buff=$0
+		    sub("#define[ \t]+", "")
+		    sub("#.*", "")
+		    term=$1
+		    sub(term "[ \t]+", "")
+		    defs[term]=$0
+		    items[term]=NF-1
+		    if (!(filepoint||not_a_4gl)) print buff > of
+		    continue
+		}
+
+# for the sake of line counts, skip included comment lines...
+		if ($0 ~ /^#|^--/)
+		{
+		    if (!(filepoint||not_a_4gl)) print > of
+		    continue
+		}
+
+# ...and included empty lines
+		if (!NF)
+		{
+		    if (not_a_4gl||!filepoint) print > of
+		    continue
+		}
+
+# globals "filename" directive
+		if ($0 ~ /^[^#]*globals *\".*\"/)
+		{
+		    if (!inglobals)
+		    {
+			n=split($0, t, "\"")
+			if (globalsdone) $0="{" $0 "}"
+			else $0="{" $0 "} globals \"" gf "\""
+			filestack[++filepoint]=t[2]
+			curfile=t[2]
+			nextrowoutput=gf
+			inglobals=filepoint
+			controlstack[++controlpoint]="globals"
+			controlstate[controlpoint]=1
+		    }
+		    else error=1
+		    nootherglobals=0
+		}
+
+# end globals directive
+		if ($0 ~ /end *globals/)
+		{
+		    if (inglobals==filepoint && inglobals) 
+		    {
+			gsub("end *globals", "")
+			inglobals=0
+			nextrowoutput=of
+			globalsdone=1
+			close(filestack[filepoint--])
+			controlpoint--
+		    }
+		    else error=1
+		    nootherglobals=0
+		}
+
+# plain globals directive
+		if ($0 ~ /[^#]*globals/)
+		{
+		    if (nootherglobals)
+			if (inglobals==filepoint && inglobals) 
+			{
+			   if (globalsdone) sub("globals", "")
+			}
+			else error=1
+		    nootherglobals=1
+		}
+
+# database directive
+		if ($0 ~ /[^#]*database *[^ ]*/)
+		{
+		    if (inglobals==filepoint && inglobals) 
+		    {
+			if (globalsdone) sub("database *[^ ]*", "")
+		    }
+		    else error=dbcount
+		    dbcount++
+		}
+
+# plain line, perform substitutions
+		i=1;
+		fieldlimit=0
+		while (i<=NF)
+		{
+		    if ($i in defs)
+
+# circular substitution, avoid infinite loops
+			if ($i in entries)
+			    error++
+			else
+			{
+
+			    entries[$i]=i
+			    if (fieldlimit)
+				fieldlimit+=items[$i]
+			    else
+				fieldlimit=i+items[$i]
+			    sub($i, defs[$i])
+			    continue
+			}
+		    if (i++==fieldlimit)
+		    {
+			fieldlimit=0
+			for (q in entries) delete entries[q]
+		    }
+		}
+		if (error)
+		{
+		    error=0
+		    print $0 " # fglpp: probable error" > rowoutput
+		}
+		else print > rowoutput 
+	    }
+	}
+
+#at the end of the fair, terminate output globals file, if needed
+END	{ if (globalsdone) print "end globals" > gf }

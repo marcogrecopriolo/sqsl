@@ -1,0 +1,870 @@
+-------------------------------------------------------------------------------
+                 Structured Query Scripting Language Reference
+-------------------------------------------------------------------------------
+
+SQSL is essentially an augmented SQL with a number of feautures borrowed from
+various sources among which awk, sh, perl and x4GL. The actual interpreter is
+in fact implemented as an SQL preinterpreter: as such it will pass to the
+engine in use anything that it cannot handle directly and that it does not
+readily recognise as incorrect. This makes it somewhat hard to define the
+entire syntax of the language, as it is dependent on the engine the interpreter
+is connected to. We will therefore describe the features above and beyond SQL:
+
+* Statements
+
+  o Connection_related_statements
+  o Control_statements
+  o SQL_statements
+  o Simple_statements
+
+* Clauses
+
+  o Expressions
+  o Assignments
+  o Pattern_clause
+  o Using_clause
+  o Connection_clause
+  o Aggregate_clause
+  o SQL_redirection_clause
+  o Storage_clause
+  o Format_clause
+
+* Syntax_Variations
+* Expansion_facility
+
+Connection related statements
+-------------------------------------------------------------------------------
+
+  CONNECT TO <expression>
+    [ SOURCE <source_name> ]
+    [ AS <expression> ]
+    [ USER <expression>
+      USING <expression> ]
+    [ <source specific options> ];
+
+  DISCONNECT <expression>;
+
+  SET CONNECTION [ DEFAULT [ SOURCE <source_name> ] | <expression> ];
+
+Sources are implemented as shared objects. Currently there are two sources for
+Informix engines, three for DB2 and one for SolidDB.
+The interpreter sports the concept of 'current source', which is the source
+selected by the latest CONNECT statement explicitely naming a source. Further
+CONNECT statements not specifically selecting a source will use the current
+source.
+Connections are named, which means that no two connections can share the same
+name, even when they are related to different sources. Connections can be
+renamed via the AS clause, which can be used to allow connections to two
+identically named identifiers residing on two different sources. Bear in mind
+that not all database engines support connection synonyms, which means that,
+even renaming connections, SQSL cannot help getting past the vendor's inability
+to connect multiple times from the same client to the same database identifier.
+Fork a child instead.
+Certain database engines also sport the concept of a DEFAULT, unnamed,
+connection. This is a connection that gets automatically established upon
+receiving any sql statement. Default connections, if supported by the source,
+cannot be explicitely connected to or disconnected, but they can be set as
+current.
+The initial current SQSL source is the IFXM one. The initial connection is the
+IFMX default connection, which is not physically established until a statement
+is passed to the engine.
+
+Control statements
+-------------------------------------------------------------------------------
+
+  FOREACH [ [ [ [ <identifier> CURSOR [ WITH HOLD ] FOR | WITH HOLD ] ] <select
+  statement> |
+              <execute procedure> ] [ <using_clause> ] [ <connection_clause> ] |
+            EXECUTE <expression> [ <using_clause> ] |
+            [ INPUT FROM <expression> |
+              READ FROM <expression> |
+              PIPE FROM <expression> ] <pattern_clause> ]
+      [ <aggregate_clause> ] [ <storage_clause> ] [ <format_clause> ];
+      [ <statement list> | BREAK | CONTINUE ];
+  END FOREACH;
+
+  CLONE <expression> INTO <variable>, <variable>;
+      [ <statement list> | BREAK | CONTINUE ];
+  [ PARENT;
+      [ <statement list> | BREAK | CONTINUE ]; ]
+  END CLONE;
+
+  WAIT FOR <expression_list> INTO <variable>, <variable>;
+      [ <statement list> | BREAK | CONTINUE ];
+  END WAIT;
+
+  FOR <variable> IN <expression_list>;
+      [ <statement list> | BREAK | CONTINUE ];
+  END FOR;
+
+  WHILE <expression>;
+      [ <statement list> | BREAK | CONTINUE ];
+  END WHILE;
+
+  IF <expression>;
+      <statement list>
+  [ ELSE IF <expression>;
+      <statement list>
+  ... ]
+  [ ELSE;
+      <statement list> ]
+  END IF;
+
+  BEGIN IMMEDIATE;
+      <statement list>
+  END IMMEDIATE;
+
+  BEGIN COMPOUND;
+      <statement list>
+  END COMPOUND [ <connection_clause> ];
+
+Few surprises on how the control statements work:
+
+* The CLONE statement forks <expression> children, each executing the same code
+  up to the PARENT clause (or the end of the loop, if none is specified). At
+  each iteration, the current child number and its process id are stored in the
+  two target variables respectively. The PARENT clause can be used to specify
+  parent actions for each spawned child, like error checking.
+  As you would expect, the number of children forked must cast to an integer
+  and must be greater than zero. There is currently a limit of 128 children
+  forked by any one statement.
+* The WAIT FOR statement waits for each child whose process id is specified in
+  the <expression_list>. At each iteration the return code and process id are
+  stored in the two target variables.
+* COMPOUND and IMMEDIATE code blocks skip SQSL parsing altogether and just pass
+  the enclosed statements to the engine, the former as a single block, the
+  latter one at a time.
+* WHILE loops reevaluate expansions that are part of the expression_clause at
+  every iteration
+* FOR's expression_list is determined at the beginning of the loop and does not
+  change with subsequent iterations, as in the bourne shell or awk, but unlike
+  perl's FOREACH
+* Unlike the korn shell, awk or perl, it is perfectly fine to have hash
+  elements as FOR, FOREACH, CLONE and WAIT FOR loops target variables. These
+  are determined at each iteration, so be mindful of side effects that may be
+  introduced by the aggregate_clause or the code inside the loop blocks.
+* loops can be terminated through the BREAK statement, or their reminder be
+  skipped with the CONTINUE statement.
+
+SQL statements
+-------------------------------------------------------------------------------
+
+  [ <select statement> | <execute procedure> ]
+     [ <using_clause> ]
+     [ <connection_clause> ]
+     [ <aggregate_clause> ]
+     [ [ <storage_clause> ] [ <format_clause> ] |
+       [ <redirection_clause> ] ];
+
+  [ <insert statement> | <delete statement> | <update statement> | <select into
+  temp> ]
+     [ <using_clause> ]
+     [ <connection_clause> ];
+
+  <other SQL>
+     [ <connection_clause> ];
+
+By and large you are expected to be familiar with the statements above, with
+the exception, that is, of the interesting stuff: all those little extra
+clauses. These are described below, each in its own little section.
+
+Simple statements
+-------------------------------------------------------------------------------
+
+  LET <assignment_clause>;
+
+  STORE <expression_list> INTO <variable> [<type_cast>]
+     [, <variable> [<type_cast>]... ];
+
+  DISPOSE <variable>;
+
+  INVOKE <function>
+     [ ( <expression_list> ) ]
+     [ RETURNING <variable> [<type_cast>]
+        [, <variable> [<type_cast>]... ] ];
+
+  DISPLAY <expression_list> [ <format_clause> ];
+
+  APPEND TO [ <expression> | DEFAULT ];
+
+  [ OUTPUT | WRITE | PIPE ] TO <expression>;
+
+  OUTPUT FORMAT [ PLAIN | HTML ];
+
+  OUTPUT WIDTH <expression>;
+
+  [ INPUT | READ | PIPE ] FROM <expression>
+     [ <pattern_clause> ]
+     [ <aggregate_clause> ]
+     [ [ <storage_clause> ] [ <format_clause> ] |
+       [ <redirection_clause> ] ];
+
+  PREPARE <variable> FROM <sql statement>
+     [ <using_clause> ]
+     [ <connection_clause> ]
+     [ <aggregate_clause> ]
+     [ <storage_clause> ]
+     [ <format_clause> ];
+
+  EXECUTE <expression>
+     [ <using_clause> ]
+     [ <connection_clause> ]
+     [ <aggregate_clause> ]
+     [ [ <storage_clause> ] [ <format_clause> ] |
+       [ <redirection_clause> ] ];
+
+  FREE <expression>;
+
+  EXIT [ <expression> ];
+
+  WHENEVER ERROR [ CONTINUE | STOP ];
+
+  ERROR LOG TO <expression>;
+
+LET and DISPLAY are self explatory. STORE performs multiple assignments. The
+only issue worth noting is that while the expansion_facility on its own is
+already capable of fairly unpredictable side effects, couple it with the LET
+statements and things could become pretty nasty.
+INVOKE is the equivalent of x4GL's CALL (CALL is used to execute procedures in
+many SQL implementations, hence the use of INVOKE)
+DISPOSE physically obliterates items from the storage_space. You can DISPOSE of
+anything: scalars, hashes, or even hash subsets.
+APPEND, OUTPUT, WRITE and PIPE TO all instruct the interpreter to redirect its
+output. The expression passed to APPEND and OUTPUT is a name of a file (OUTPUT
+will truncate it, APPEND will add to it), while PIPE, as you would expect,
+pipes the output to a child process.
+In case of failure, the output is redirected to the default stream, and the
+reason of the failure can be inspected via DBINFO("errno").
+APPEND TO DEFAULT causes the new output generated by the interpreter to be
+added to the default stream, which in the case of the demo application is the
+viewer display, but can be defined to be a file_or_pipe.
+WRITE writes to a stream previously obtained with FOPEN() or POPEN(). Upon
+switching to a different output, the stream is not closed.
+Conversely, INPUT, READ and PIPE FROM read data from a file, a stream, or a
+pipe
+Streams can be opened and closed via the FOPEN, POPEN and SCLOSE functions.
+Custom streams can even be created via skillfull combinations of the arbitrary
+stream_interface and the external_function_API.
+PREPARE, EXECUTE and FREE have not been inplemented in aid to dynamic sql (use
+the expansion_facility instead), but rather to improve performance of sql
+repeatedly used.
+Both the PREPARE and EXECUTE statements offer USING, AGGREGATE and INTO
+clauses, however with the former placeholders, aggregates and storage are
+determined once and for all at prepare time (plus: it's fast(er)), while the
+latter allows multiple executions of the same statement using different
+placeholders agregates and targets (plus: it's flexible).
+Be aware, however, that in both cases expressions will be evaluated at
+execution time, so watch out for those pesky side effects.
+EXIT behaves very much like x4GL's or bourne shell's exit however, note that it
+has different meanings depending whether the process is the result of a FORK
+(the process terminates) or not (the script terminates and the process resumes
+normal operation).
+
+Identifiers
+-------------------------------------------------------------------------------
+
+Identifiers start with an alphabetic character and continue with alphabetic
+characters, digits or underscores. Indentifiers are not case sensitive.
+A larger character set is allowed and case sensitivenes is enforced when the
+identifier is enclosed in double quotes. Double quotes only have this special
+meaning when the environmetal variable DELIMIDENT is set, viceversa they just
+introduce string constants.
+
+Variables
+-------------------------------------------------------------------------------
+
+Variables are dynamic and typed, ie they spring into existence when first
+referenced and change type at every new assignment (either by means the simple
+statements or the storage_clause) as the case needs be.
+Variables come in two flavours: scalars and hashes. Hashes elements can too be
+scalar or hashes, thereby allowing jagged hashes.
+Hashes and scalars share the same namespace, which means that you are not
+allowed to use a hash where a scalar is expected, nor can you try to make a
+hash a scalar by assigning to it a scalar value (DISPOSE is your friend).
+Hashes are subscripted with an expression list enclosed in round parenthesys:
+<variable>(<expression> [, <expression>...])
+
+Expressions
+-------------------------------------------------------------------------------
+
+Just like in any other language, expressions are used to aggregate data. They
+fall broadly in the following categories
+
+* Constants
+
+  Integer constants          [0..9]+
+  Float or decimal constants [0..9]+.[0..9]+[E[+|-][0..9]+]
+  String constants           '<character>...' or, if DELIMIDENT is not set,
+                             "<character>..."
+  NULL
+
+* Variables
+
+* String Expressions
+
+  <expression> CLIPPED              The CLIPPED postfix operator removes
+                                    trailing blanks from the operand.
+                                    The SPACES postfix operator generates a
+  <expression> SPACES               string of spaces long as specified in the
+                                    operand, taken as an integer expression.
+                                    The PICTURE infix operator takes an
+                                    expression and a string expression and
+  <expression> PICTURE <expression> returns a string representing the first
+                                    expression formatted according to the
+                                    specification of the second expression.
+                                    The [...] ternary operator returns a
+  <variable>\[<expression> [,       substring of the first operand starting at
+  <expression>]\]                   the character position indicated by the
+                                    second and ending at the third.
+
+* Interval Expressions
+
+  <expression> UNITS [YEAR|MONTH|DAY|HOUR|MINUTE|SECOND|FRACTION]
+
+* Expression casting
+
+  <expression>::[INT[EGER]|FLOAT|DEC
+  [IMAL]|MONEY|DATE|DATETIME         Currently only NULL expressions can be
+  [<qualifier>]|INTERVAL             cast to BYTE.
+  [<qualifier>]|STRING|BYTE]
+
+* Arithmetic Expressions
+
+                                      Datetime and interval arithmetics extend
+  <expression> [+|-|*|/] <expression> datetime and interval expression
+                                      qualifiers as necessary.
+
+* Boolean Expressions
+
+  <expression> [=|<>|>|>=|<|<=] <expression>
+  <boolean_expression> [AND|OR] <boolean_expression>
+  NOT <boolean_expression>
+  <expression> [NOT] IN (<expression_list>)
+  <expression> [NOT] BETWEEN <expression> AND <expression>
+  <expression> [NOT] LIKE <string_expression> [ESCAPE <string_expression>]
+  <expression> [NOT] MATCHES <string_expression> [ESCAPE <string_expression>]
+  <expression> [NOT] REGEXP LIKE <string_expression>
+  <expression> IS [NOT] NULL
+
+* Functions
+
+  <function> [(<expression_list>)]
+
+* Conditional Expressions
+
+  CASE <expression> WHEN <expression> THEN <expression> [...] [ELSE
+  <expression>] END
+  CASE WHEN <boolean_expression> THEN <expression> [...] [ELSE <expression>]
+  END
+
+* Expression grouping
+
+  (<expression>)
+
+Expression lists
+-------------------------------------------------------------------------------
+
+  [ <expression> |
+    <expression> TO <expression> |
+    <variable>.* ] |
+    <variable>.(<expression_list>) ] |
+    SPLIT(<expression_list>)] <pattern_clause> ] [, ... ] |
+    DISPLAYLABELS[.(<expression_list>)]
+    COLUMNS[.(<expression_list>)]
+  ]
+
+Expression lists can include expanded hashes (denoted by the hash name followed
+by .* or .(<expression_list>), when only a subset of a hash is required), and
+integer range expressions.
+The DISPLAYLABELS and COLUMNS hash functions can be used whenever there is an
+active statements to return a list of column names, if supported by the current
+source.
+
+Functions
+-------------------------------------------------------------------------------
+
+SQSL offers a range of predefined functions. Identifiers representing function
+names are in fact reserved words.
+An API to implement external functions is provided. External functions are
+referenced as <library_name>:<function_name>.
+The API can be used to implement functions that open arbitrary data streams.
+Parameters are passed to functions via an optional expression_list; enclosed in
+round parenthesys.
+The following classes of functions are on offer:
+
+* Algebraic, exponential, logarithmic and trigonometric
+
+  ABS(<numeric_expression>)
+  ACOS(<numeric_expression>)
+  ASIN(<numeric_expression>)
+  ATAN(<numeric_expression>)
+  ATAN2(<numeric_expression>, <numeric_expression>)
+  COS(<numeric_expression>)
+  EXP(<numeric_expression>)
+  LOG10(<numeric_expression>)
+  LOGN(<numeric_expression>)
+  MOD(<integer_expression>, <integer_expression>)
+  POW(<numeric_expression>, <numeric_expression>)
+  ROOT(<numeric_expression>, <numeric_expression>)
+  ROUND(<numeric_expression>[, <numeric_expression>])
+  SIN(<numeric_expression>)
+  SQRT(<numeric_expression>)
+  TAN(<numeric_expression>)
+  TRUNC(<numeric_expression>[, <numeric_expression>])
+
+* Date, datetime and interval
+
+                                     Returns the current timestamp on the
+  CURRENT [<qualifier>]              client machine. There is no guarantee that
+                                     this matches what returned by the
+                                     connected engines.
+                                     Converts the first argument to a date. The
+                                     optional second argument specifies a
+  DATE(<expression> [, <string       pictorial_representation of the input
+  expression>])                      data. If this is not set, the
+                                     environmental variable DBDATE is checked
+                                     for date format. If this is unset, the
+                                     default is MM/DD/YY.
+                                     Converts the first argument to a datetime.
+                                     The optional second argument specifies a
+  DATETIME(<expression> [, <string   pictorial_representation of the input
+  expression>]) [<qualifier>]        data. If this is missing, the first
+                                     argument is expected to follow ANSI SQL
+                                     datetime format specifications, which are
+                                     YYYY-MM-DD HH:MM:SS.FFFF.
+  DAY(<date_expression>)             Returns the day of the month from the date
+                                     or datetime passed as argument.
+                                     Converts the first argument to an
+                                     interval. The optional second argument
+  INTERVAL(<expression> [, <string   specifies a pictorial_representation of
+  expression>]) [<qualifier>]        the input data. If this is missing, the
+                                     first argument is expected to follow ANSI
+                                     SQL interval format specifications, which
+                                     are YYYY-MM and DD HH:MM:SS.FFFF.
+  MDY(<integer_expression>, <integer Constructs a date from the three arguments
+  expression>, <integer_expression>) supplied.
+  MONTH(<date_expression>)           Returns the month from the date or
+                                     datetime passed as argument.
+                                     Returns the current date. There is no
+  TODAY                              guaranteed that this matches what returned
+                                     by the connected engines.
+  WEEKDAY(<date_expression>)         Returns the day of the week from the date
+                                     or datetime passed as argument.
+  YEAR(<date_expression>)            Returns the year from the date or datetime
+                                     passed as argument.
+
+* String
+
+  ASCII(<integer_expression>)           Converts the integer argument to a
+                                        character
+  CHAR_LENGTH(<string_expression>)      Returns the character (as opposed to
+                                        byte) length of a multybyte string.
+                                        (only valid within expressions
+                                        associated to an active statement)
+  DISPLAYFORMAT[(<integer_expression    Returns a string containing a format
+  list>, )]                             specifier generated from the data types
+                                        gathered from column list as specified
+                                        in the arguments.
+  INDEX(<string_expression>, <string    Returns the starting point of the
+  expression>)                          second arcgument within the first
+                                        argument.
+  INITCAP(<string_expression>)          Converts to upper case the initial
+                                        character in each word in the argument.
+  LENGTH(<string_expression>)           Returns the length of a string.
+  LOWER(<string_expression>)            Converts every character in the input
+                                        argument to lowercase.
+                                        Pads the first argument to the length
+  LPAD(<string_expression>, <integer    specified by the second argument by
+  expression> [, <string_expression>])  repeatedly prepending the pattern
+                                        specified by the third.
+                                        Returns the starting point within the
+  MATCH(<string_expression>, <string    first argument of a string matching the
+  expression>)                          regular expression in the second
+                                        argument.
+                                        Construncts a string containing a
+  PAD(<string_expression>, <integer     repeated pattern as per first argument,
+  expression>)                          and long as many characters as
+                                        specified in the second.
+  REPLACE(<string_expression>, <string  Replaces in the first argument every
+  expression> [, <string_expression> [, occurrence of the second argument with
+  <integer_expression>, <integer        the third. The optional fourth and
+  expression>]])                        fifth arguments stipulate a starting
+                                        point and a length.
+                                        Pads the first argument to the length
+  RPAD(<string_expression>, <integer    specified by the second argument by
+  expression> [, <string_expression>])  repeatedly appending the pattern
+                                        specified by the third.
+                                        Extract a substring from the first
+  SUBSTR(<string_expression>, <integer  argument starting at the second
+  expression> [, <integer_expression>]) argument, either up to the end of the
+                                        string or for the length specified by
+                                        the third argument.
+  UPPER(<string_expression>)            Converts every character in the input
+                                        argument to lowercase.
+
+* System
+
+                                     Creates a child process as in fork(2).
+                                     Returns the child process id to the parent
+                                     process, 0 to the child process and -1 in
+  FORK                               case of errors, with the DBINFO variable
+                                     errno being set to the actual error
+                                     number. The child process does not inherit
+                                     any of the parent resources, and performs
+                                     an implicit EXIT at the end of the script.
+                                     Executes a system command without ever
+                                     returning. It maps to
+
+  EXEC(<string_expression>)                execl("/bin/sh", "-c", command_line,
+                                       NULL);
+
+                                     so it handles shell expansions, etc. Sets
+                                     errno.
+                                     Waits for any child processes as in wait
+                                     (2). Returns the pid of the child that has
+  WAIT                               just terminated. Return code and error
+                                     number are returned by DBINFO("$?") and
+                                     DBINFO("errno") respectively.
+                                     Waits for a specific child to terminate as
+  WAITPID(<integer_expression>)      in waitpid(2). Same return value and
+                                     behaviour as WAIT.
+                                     Combines FORK, EXEC and WAITPID in one
+  RUN(<string_expression>)           convenient call. Returns the return code
+                                     from the child process,
+  SPAWN(<string_expression>)         Combines FORK and EXEC. Returns the
+                                     child's process id.
+  FOPEN(<string_expression>, <string Opens a file as for fopen (3). Returns a
+  expression>)                       file desciptor. Sets errno.
+  POPEN(<string_expression>, <string Opens a pipe and forks a child process as
+  expression>)                       in popen (3). Returns a file descriptor.
+                                     Sets errno.
+  SCLOSE(<integer_expression>)       Closes a file descriptor opened with
+                                     either FOPEN or POPEN. Sets errno.
+  GETENV(<string_expression>)        Returns an environmetal variable value.
+  SLEEP(<integer_expression>)        Suspends the scripts execution for the
+                                     given number of seconds.
+                                     Returns the user id. This may very well be
+  USER                               different from what each connected engine
+                                     would return.
+  EVAL(<string_expression>)          Executes the string argument and returns
+                                     the output. Sets errno.
+
+* Miscellaneous
+
+  COUNT(<hash_variable>)                 Returns the number of elements in a
+                                         hash.
+                                         (When part of the aggregate_clause)
+  COUNT(*)                               Returns the number of elements in a
+                                         INPUT, PIPE FROM or READstatements.
+                                         The argument to DBINFO can be one of
+
+                                         o sqlca.sqlcode, which returns the
+                                           latest SQL error.
+                                         o sqlca.sqlerrd1 is source dependent.
+                                         o sqlca.sqlerrd2 is source dependent
+  DBINFO(<string_expression>)              but usually returns the number of
+                                           rows processed.
+                                         o errno contains operating system
+                                           error codes from functions that
+                                           populate it.
+                                         o $? provides the return code of the
+                                           latest terminating child.
+
+  DECODE(<expression>, <when             Functional equivalent to the CASE
+  expression>, <then_expression> [, ...] expression.
+  [, <else_expression>])
+  FILETOBLOB(<string_expression>)        Loads a blob variable from the file in
+                                         the argument.
+  FILETOTEXT(<string_expression>)        Loads a string variable from the file
+                                         in the argument.
+  HEX(<integer_expression>)              Functional equivalent to PICTURE_"%x".
+  NVL(<expression>, <expression>)        Returns the first argument if not
+                                         NULL, otherwise the second.
+                                         Generates an integer random number
+  RANDOM(<integer_expression>[, <integer between 0 and the first argument. The
+  expression>])                          optional second number seeeds the
+                                         random number generator.
+
+Datetime and Interval qualifiers
+-------------------------------------------------------------------------------
+
+* Datetimes: [YEAR|MONTH|DAY|HOUR|MINUTE|SECOND|FRACTION] TO
+  [YEAR|MONTH|DAY|HOUR|MINUTE|SECOND|FRACTION]
+* Intervals: [YEAR|MONTH] TO [YEAR|MONTH] or [DAY|HOUR|MINUTE|SECOND|FRACTION]
+  TO [DAY|HOUR|MINUTE|SECOND|FRACTION]
+
+The second qualifier unit must not be higher than the first.
+
+Formatting specifiers
+-------------------------------------------------------------------------------
+
+These are used as part of the PICTURE expression clause and FORMAT clause to
+specify numeric, date and datetime or interval display formats, and, for dates,
+datetimes and intervals, input pictures as part of the PATTERN clause.
+
+* Numeric
+
+  *     Fills with asterisks any character position than would have been
+        otherwise left blank.
+  &     Fills with zeroes any character position than would have been otherwise
+        left blank.
+  #     Changes leading zeroes with blanks.
+  <     Left justifies the output. Changes leading zeroes to a null string.
+  ,     Represents the thousand separator. Only appears if the number has four
+        digits or more.
+  .     Represents the decimal separator. Only one can appear in the picture
+        string.
+  -     Literal negative sign. It only appears if the number is negative.
+        Multiple minus characters make the negative sign float to the right.
+  +     Literal positive sign. It only appears if the number is positive.
+        Multiple plus characters make the positive sign float to the right.
+  (     Literal left parethesis, used when the number is negative. Several left
+        paranthesis float the symbol to the right.
+  )     Literal symbol that appears if the number is negative.
+  $     Displays the currency sign. Multiple symbols float the currency sign to
+        the right.
+
+  Any other character is used literally.
+* Date
+
+  dd   Day of the month as a two digit number.
+  ddd  Day of the week as a three character string.
+  mm   Month as a two digit number.
+  mmm  Month as a three characteer string.
+  yy   Year as a two digit number.
+  yyyy Year as a four digit number.
+  ww   Day of the week as a two digit number.
+
+  Any other character is used literally.
+* Datetime and interval
+
+  %b  Abbreviated month name.
+  %B  Full month name.
+  %d  Day of the month as a two digit number.
+  %Fn Fraction as a n digit number.
+  %H  Hours in 24 hours format, as a two digit number.
+  %I  Hours in 12 hours format, as a two digit number.
+  %M  Minutes as a two digit number.
+  %m  Month as a two digit number.
+  %p  AM or PM as a two character string.
+  %S  Seconds as a two digit number.
+  %y  Year as a two digit number.
+  %Y  Year as a four digit number.
+  %%  Literal percentage symbol.
+
+  Any other character is used literally.
+
+Assignments
+-------------------------------------------------------------------------------
+
+  [ <variable> [ <substring range> ] = <expression> |
+    <variable> ::= <type_cast> |
+    <variable> [ + | - | * | / ] = <expression> ]
+
+This is used as either part of the LET statement or the aggregate_clause.
+
+Pattern clause
+-------------------------------------------------------------------------------
+
+  PATTERN [ <expression> |
+          DELIMITED [ BY <expression> [ ESCAPE <expression> ] ] |
+          REGEXP DELIMITED BY <expression> |
+  	EXTRACTOR <external_function_call> ]
+
+The PATTERN clause is used to specify the format of the data read by the READ,
+INPUT and PIPE FROM commands. It's use is similar to the FORMAT clause.
+
+Using clause
+-------------------------------------------------------------------------------
+
+  USING <expression_list>
+
+As an alternative to the expansion_facility, SQL statements can use
+placeholders as you would on an OPEN or EXECUTE statement. Use the USING clause
+to list the expressions that should substitute placeholders. This feature can
+be used to insert or update (should you ever get a working version of the
+IFX_UPDDESC feature) text or byte values on the fly.
+
+Connection clause
+-------------------------------------------------------------------------------
+
+  CONNECTION [ DEFAULT [ SOURCE <source_name> ] | <expression> ]
+
+SQL statements are normally executed against the current connection. The
+CONNECTION clause allows to execute a single statement against a different
+connection, with the only obvious restriction that it needs to be already
+established.
+
+Aggregate clause
+-------------------------------------------------------------------------------
+
+  AGGREGATE [ [ WHEN <boolean_expression> THEN ] <assignment_clause> |
+       WHEN <boolean_expression> THEN [ BREAK | CONTINUE ] ] [,...]
+
+Part of the SELECT and INPUT classes of statements, this is quite a flaxible
+clause, in that it can be used to
+
+* skip the initial or final part of an input stream (be it from a stored
+  procedure a select, a file or a pipe), or individual records
+* modify input records before they are stored
+* calculate aggregates or maintain row counts
+* redetermine target variables
+
+Input field, both as part of expressions or in assignments, are denoted by
+COLUMN(<expression>), with expression denoting the field number.
+
+SQL redirection clause
+-------------------------------------------------------------------------------
+
+  [ <insert statement> [ <connection_clause> ] |
+    <execute procedure statement> [ <connection_clause> ] |
+    EXECUTE <expression> ]
+
+Besides storing data, or writing it in a formatted manner, data retrieval
+statements can redirect it to a table, or can execute a stored procedure for
+each row retrieved.
+There are a few limitations on the statements that can be executed:
+
+* INSERT statements must have a VALUES clause
+* EXECUTE PROCEDURE statements must not return any data
+* Prepared statements can only be of the two types above
+* The statements must have placeholders to match the fields/columns in the
+  input data row
+
+Storage clause
+-------------------------------------------------------------------------------
+
+  INTO <variable> [<type_cast>] [, <variable> [<type_cast>]...]
+
+Retrieved data can be stored locally. Use the INTO clause to list the target
+variables.
+
+Format clause
+-------------------------------------------------------------------------------
+
+  FORMAT [ BRIEF |
+           [ FULL | VERTICAL ] [ <expression> ] [ HEADERS <expression> [,
+  <expression>... ] ] |
+           DELIMITED [<expression>] [ BY <expression> [ ESCAPE <expression> ] ]
+  ]
+
+Queries and display statements output can be formatted.
+The BRIEF format only outputs column values separated by commas, with no
+formatting whatsoever, VERTICAL will output rows in a header/column fashion
+(formatting columns in the way), DELIMITED will produce a single line of
+delimited expressions (optionally formatted as specified) and lastly FULL
+formats rows in a tabular fashion.
+The first expression is a format specifier in which both c format specifiers
+and pictorial_specifiers can be used. C formats are specified the usual way
+(see sprintf (3)), while pictorial formats have to be enclosed in square
+brackets. Either way, format specifiers can be interspersed with plain text,
+hard tabs and new lines, or \n and \t. To ease header formatting (in case plain
+text appears in the format, in particular for vertical formats), columns can be
+separated with the pipe (|) sign. This is not required though. Special
+characters ([]%| and the quotes in use) can be escaped by doubling them. The
+backslash has special significance only when followed by either 't' or 'n'.
+Note that there's no need to specify as many format specifiers as columns,
+while with full format, more than needed will combine multiple rows into a
+single format.
+The header clause specifies a list of headers to be output as the first row of
+the query in full format, and preceding each column in vertical format. Headers
+will be padded to the length of the appropriate field (full format) or the
+largest header (vertical).
+As for formats, there's no need that the number of headers matches that of the
+items being selected.
+
+Syntax Variations
+-------------------------------------------------------------------------------
+
+* END [CLONE|WAIT|FOR|FOREACH|WHILE|IF] can be raplaced by DONE and FI (a la
+  bourne shell). Similarly ELSE IF can be replaced by ELIF.
+* errno, sqlcode, sqlerrd1 and sqlerrd2 can be accessed directly rather than
+  through DBINFO
+* CHARACTER_LENGTH is a synonym for CHAR_LENGTH
+* SYSTEM is a synonym for RUN
+* several predefined functions, such as RUN, EXEC, SPAWN, WAITPID and SLEEP can
+  be invodeked directly, rather than through INVOKE, when the return value can
+  be discarded, eg
+
+    sleep 10;
+
+  rather than
+
+    INVOKE sleep(10) RETURNING s;
+
+* == and != are synonyms for = and <> within boolean_expressions
+* COLUMN(<expression>) can be raplaced by $<expression> (a la awk) within the
+  aggregate_clause
+* Similarly, WHEN <boolean_expression> THEN within the aggregate_clause
+* can be replaced by (<boolean_expression>). Be mindful that the aggregate
+  clause cannot mix and match the two syntax variations.
+
+CAST(<expression>, [INT[EGER]|FLOAT|DEC[IMAL]|MONEY|DATE|DATETIME
+[<qualifier>]|INTERVAL [<qualifier>]|STRING|BYTE]) is an alternative to the
+cast_operator anywhere within expressions
+
+Expansion facility
+-------------------------------------------------------------------------------
+
+The expansion facility caters for pick lists, query or application output
+substitution anywhere in the script. Expansions are performed whenever a <+ +>
+pair is encountered, can be freely nested and can be any of the following:
+
+READ file [ file... ]                 displays the contents of multiple files
+EXEC pipe                             executes an arbitrary application
+GET <expression> [, <expression>... ] returns the concatenated results of the
+                                      expression list
+                                      opens a pop up window, prompts the
+PROMPT <expression>                   evaluated <expression> to the user, and
+                                      returns the user response
+PASSWD <expression>                   behaves like PROMPT, except that the text
+                                      input by the user is not displayed
+a SELECT statement                    displays the results of a query. Queries
+                                      are run against the current connection.
+
+prefix the above with any of the following options to change expansion
+behavior:
+
+                                    Specifies which expansion should be
+                                    performed. CODED will open a code/
+                                    description pick list (only the code is
+[ CODED | LONE | SILENT | INCLUDE ] returned), LONE will open a description
+                                    only pick list, SILENT will just do a plain
+                                    expansion, while INCLUDE recursively
+                                    includes the expansions found while
+                                    processing the outer one.
+                                    Specifies whether the expansion should
+                                    return one or more values. For pick lists,
+[ SINGLE | MULTI ]                  this controls whether multiple selections
+                                    are allowed. For silent expansions, whether
+                                    only the first or all values should be
+                                    returned. It does not apply to includes.
+PUT <variable>                      Stores the output of the expansion in the
+                                    variable specified.
+                                    Specifies quotes to surround each value
+QUOTES <expression>                 returned by get or multiple expansions.
+                                    Default is none. Enter two characters to
+                                    specify differring start and end quotes.
+                                    Specifies the entry separator between each
+SEPARATOR <expression>              value returned by get or multiple
+                                    expansions. Default is blank.
+
+A few gotchas:
+
+* default behavior is CODED SINGLE (only because I use it a lot :-) wherever
+  pick lists are allowed, and SILENT otherwise
+* QUOTES and SEPARATOR are illegal with SINGLE, and imply MULTI (so, MULTI
+  usage is redundant, with them)
+* pick list expansions will fail if the pick list is empty, while GET and
+  SILENT expansions can happily expand to nothing. this is useful to silently
+  execute external applications
+* The PUT clause can be source of unexpected side effects
+
+Expansions can be commented using a <* *> pair. At par to <+ +> pairs, such
+comments can be nested. Expansions and comment tokens can be escaped with a
+backslash. Note that the backslash does not escape anything else, thus you
+don't need to escape it to use it in the context of a select statement or a
+shell script.
+Finally, feel free to use whichever comment mechanism you like, as long as it
+makes sense within the context in which it is used, eg {} or --<CR> in SQL
+statements, or #<CR> in perl/awk/sh scripts.

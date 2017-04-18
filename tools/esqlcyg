@@ -1,0 +1,129 @@
+#!/usr/bin/sh
+#	"@(#) esqlcyg 0.1"
+#
+#	esqlcyg - fronted for the esql/c precompiler
+#
+#	The Structured Query Scripting Language
+#	Copyright (C) 1992-2011 Marco Greco (marco@4glworks.com)
+#
+#	Initial release: Jan 09
+#	Current release: Feb 11
+#
+#	This library is free software; you can redistribute it and/or
+#	modify it under the terms of the GNU Lesser General Public
+#	License as published by the Free Software Foundation; either
+#	version 2.1 of the License, or (at your option) any later version.
+#
+#	This library is distributed in the hope that it will be useful,
+#	but WITHOUT ANY WARRANTY; without even the implied warranty of
+#	MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+#	Lesser General Public License for more details.
+#
+#	You should have received a copy of the GNU Lesser General Public
+#	License along with this library; if not, write to the Free Software
+#	Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
+#
+# Please note that the libraries linked are the bear minimum SQSL needs, and
+# do not necessarely cover everything esql would need. This may not be
+# enough if you have just hijacked this script for your own purposes.
+# Experiment with esql -libs -dcmdl to see what else you may need.
+#
+# Also note that SQSL has a requirement to be able to choose whether to
+# compile and link with -mno-cygwin (the way the informix libraries were
+# built) or not (to be able to take advantage of POSIX calls) depending on
+# what is being built. Mixing and matching -mno-cygwin executables is
+# risky business and may lead to crashes. Not using -mno-cygwin with
+# esql/c libraries is risky business and may lead to crashes.
+# If you have hijacked this script for your own purposes, you should
+# be using -mno-cygwin anyhow.
+#
+# -mno-cygwin requires that you have installed the mingw compiler alongside
+# the cygwin one. No need to dig anything from mingw.org: the standard cygwin
+# installation ships a mingw compiler.
+#
+IDIR="`cygpath -u $INFORMIXDIR`"
+INFORMIXDIR="`cygpath -w $INFORMIXDIR`"
+INFORMIXC=${INFORMIXC:-cc}
+DEFINES='-D__int64="long long"'
+export INFORMIXDIR
+OTHERARGS=
+CFILES=
+ECFILES=
+NOLINK=
+ECOPTS=
+DB2OPT=
+
+if test $# -lt 2
+then
+    echo "how about some parameters?"
+    exit 1
+fi
+
+if test -z "$INFORMIXDIR" 
+then 
+    echo INFORMIXDIR not set
+    exit 1
+fi
+
+for i in "$@"
+do
+    case "$i" in
+#
+# other esql/c opts here
+#
+      -n|\
+      -nowarn)
+	ECOPTS="$ECOPTS $i"
+	;;
+      -c)
+	NOLINK=1
+	OTHERARGS="$OTHERARGS $i"
+	;;
+      -I*)
+	ECOPTS="$ECOPTS $i"
+	OTHERARGS="$OTHERARGS \"$i\""
+	;;
+      -db2)
+	ECOPTS="$ECOPTS $i"
+	DB2OPT=1
+	;;
+      -static)
+#
+# we ignore
+#
+	;;
+      *\.ec)
+	BASE="$(basename "$i" .ec)"
+	CFILES="$CFILES $BASE.c"
+	ECFILES="$ECFILES \"$i\""
+	;;
+      *)
+	OTHERARGS="$OTHERARGS \"$i\""
+	;;
+    esac
+done
+
+# pre-process .ec files
+if test -n "$ECFILES"
+then
+    eval esql -p $ECOPTS $ECFILES || exit 1
+fi
+
+# pass processed files to compiler
+if test -n "$NOLINK"
+then
+    eval $INFORMIXC $DEFINES -I$IDIR/incl -I$IDIR/incl/esql $CFILES $OTHERARGS
+elif test -n "$DB2OPT"
+then
+#
+# unless you exclude exports from the esql/c supplied libraries,
+# the linker is likely to complain about some xxx_NO_THUNK_DATA symbol
+# not existing, if linking in -mno-cygwin mode. passing -exclude-libs
+# to the linker fixes this and does no harm to the standard cygwin gcc
+#
+    eval $INFORMIXC $DEFINES -I$IDIR/incl/esql $CFILES $OTHERARGS \
+	$IDIR/lib/idb2t09a.lib -Wl,-exclude-libs,idb2t09a.lib
+else
+    eval $INFORMIXC $DEFINES -I$IDIR/incl/esql $CFILES $OTHERARGS \
+	$IDIR/lib/isqlt09a.lib -Wl,-exclude-libs,isqlt09a.lib
+fi

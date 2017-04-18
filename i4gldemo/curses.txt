@@ -1,0 +1,63 @@
+#	CURSES.txt  -  Main text include file, eng
+#
+#	The Structured Query Scripting Language
+#	Copyright (C) 1992-2004 Marco Greco (marco@4glworks.com)
+#
+#	Initial release: Apr 96
+#	Current release: Jul 04
+#
+#	This library is free software; you can redistribute it and/or
+#	modify it under the terms of the GNU Lesser General Public
+#	License as published by the Free Software Foundation; either
+#	version 2.1 of the License, or (at your option) any later version.
+#
+#	This library is distributed in the hope that it will be useful,
+#	but WITHOUT ANY WARRANTY; without even the implied warranty of
+#	MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+#	Lesser General Public License for more details.
+#
+#	You should have received a copy of the GNU Lesser General Public
+#	License along with this library; if not, write to the Free Software
+#	Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
+#
+abort	<Interrupt> to abandon
+accept	<ESC> to accept
+cn	Sorry, but this option doesn't work
+co	Unknown code
+Copy	Copy
+cu	Code already used
+dc	Key associated with more than one option: hit <CR> to choose
+du	Description already used
+ea	Deletion aborted
+ee	Deletion performed
+EF	Empty field?
+erase1	Erase record?
+erase2	Confirm record deletion
+help	Ctrl-W for help
+hit	hit
+hitkey	hit a key to continue
+HD	Edit query
+ia	Insertion aborted
+ic	The field contains invalid characters
+in	Ctrl-N to insert a new record
+IN	Insert a new record?
+ma	Update aborted
+mr	Update the highlighted record?
+nd	No rows
+New	Create
+NH	Sorry, no help message available
+NO	No
+np	Sorry, can't be done
+ns	No room to select this entry
+NT	No text?
+nv	No entry in table
+oi	Operation aborted
+proceed	Proceed
+QUIT	Exit
+re	Entry recorded
+rr	Rows retrieved:
+Search	Search
+sp	The field cannot begin with a <Space>
+Update	Update
+wa	Please wait...
+YES	Yes
