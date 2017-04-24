@@ -2812,7 +2812,7 @@ am__tar='$${TAR-tar} chof - "$$tardir"' am__untar='$${TAR-tar} xf -'
 
 
 
-PACKAGE_DATE="2017-04-18 18:51:15 +0100"
+PACKAGE_DATE="2017-04-24 12:22:52 +0100"
 
 
 
@@ -6016,7 +6016,7 @@ $as_echo "$result" >&6; }
     ;;
 esac
 
-ac_config_files="$ac_config_files Makefile cli/Makefile sqsl/Makefile i4gldemo/Makefile i4gl/Makefile aubitdemo/Makefile aubit4gl/Makefile ifmx/Makefile ifmx4/Makefile db2sqc/Makefile db2cli/Makefile db2esql/Makefile solid/Makefile net/Makefile cb/Makefile json/Makefile oslib/Makefile doc/Makefile demo/Makefile tools/Makefile tools/mvs/Makefile"
+ac_config_files="$ac_config_files Makefile cli/Makefile sqsl/Makefile i4gldemo/Makefile i4gl/Makefile aubitdemo/Makefile aubit4gl/Makefile ifmx/Makefile ifmx4/Makefile db2sqc/Makefile db2cli/Makefile db2esql/Makefile solid/Makefile net/Makefile cb/Makefile json/Makefile oslib/Makefile doc/Makefile demo/Makefile test/Makefile tools/Makefile tools/mvs/Makefile"
 
 cat >confcache <<\_ACEOF
 # This file is a shell script that caches the results of configure
@@ -6779,6 +6779,7 @@ do
     "oslib/Makefile") CONFIG_FILES="$CONFIG_FILES oslib/Makefile" ;;
     "doc/Makefile") CONFIG_FILES="$CONFIG_FILES doc/Makefile" ;;
     "demo/Makefile") CONFIG_FILES="$CONFIG_FILES demo/Makefile" ;;
+    "test/Makefile") CONFIG_FILES="$CONFIG_FILES test/Makefile" ;;
     "tools/Makefile") CONFIG_FILES="$CONFIG_FILES tools/Makefile" ;;
     "tools/mvs/Makefile") CONFIG_FILES="$CONFIG_FILES tools/mvs/Makefile" ;;
 

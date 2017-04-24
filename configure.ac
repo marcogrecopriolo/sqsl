@@ -4,7 +4,7 @@ dnl	The Structured Query Scripting Language
 dnl	Copyright (C) 1992-2017 Marco Greco (marco@4glworks.com)
 dnl	
 dnl	Initial release: Feb 05
-dnl	Current release: Jan 17
+dnl	Current release: Apr 17
 dnl
 dnl	This library is free software; you can redistribute it and/or
 dnl	modify it under the terms of the GNU Lesser General Public
@@ -876,5 +876,6 @@ AC_OUTPUT(Makefile cli/Makefile sqsl/Makefile
 	  solid/Makefile net/Makefile
 	  cb/Makefile json/Makefile
 	  oslib/Makefile doc/Makefile demo/Makefile
+	  test/Makefile
 	  tools/Makefile tools/mvs/Makefile
 )

@@ -1,10 +1,10 @@
 #	MAKEFILE.am - Master automake defs
 #
 #	The Structured Query Scripting Language
-#	Copyright (C) 1992-2016 Marco Greco (marco@4glworks.com)
+#	Copyright (C) 1992-2017 Marco Greco (marco@4glworks.com)
 #
 #	Initial release: Feb 05
-#	Current release: Dec 16
+#	Current release: Apr 17
 #
 #	This library is free software; you can redistribute it and/or
 #	modify it under the terms of the GNU Lesser General Public
@@ -22,10 +22,10 @@
 
 SUBDIRS = oslib sqsl cli $(I4GLUI) $(A4GLUI) \
 	  $(DB2SO) $(IFMXSO) $(SOLIDSO) $(NETSO) $(CBSO) json \
-	  doc demo tools tools/mvs
+	  doc demo test tools tools/mvs
 DIST_SUBDIRS = sqsl oslib cli i4gl i4gldemo aubit4gl aubitdemo \
 	       ifmx ifmx4 db2sqc db2cli db2esql solid net cb json \
-	       doc demo tools tools/mvs
+	       doc demo test tools tools/mvs
 topdir = $(exec_prefix)
 
 dist_noinst_DATA = linkslist configure configure.ac INSTALL README.md
