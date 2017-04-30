@@ -20,8 +20,8 @@
 #       License along with this library; if not, write to the Free Software
 #       Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
 #
-dist_noinst_DATA = test_runner.sh arith.out arith.sqsl
-TESTS = arith.sqsl
+dist_noinst_DATA = test_runner.sh arith.out arith.sqsl format.out format.sqsl
+TESTS = arith.sqsl format.sqsl
 TEST_EXTENSIONS = .sqsl
 SQSL_LOG_COMPILER = ./test_runner.sh
 AM_SQSL_LOG_FLAGS = -x=cli$(EXEEXT)

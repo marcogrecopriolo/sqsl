@@ -1,0 +1,33 @@
+{ format type  }
+
+display 'display 0, 1.1, "a|" format brief';
+display 0, 1.1, "a|" format brief;
+
+display 'display 0, 1.1, "a|" format delimited';
+display 0, 1.1, "a|" format delimited;
+
+display 'display 0, 1.1, "a|" format full';
+display 0, 1.1, "a|" format full;
+
+display 'display 0, 1.1, "a|" format vertical';
+display 0, 1.1, "a|" format vertical;
+
+{ delimited }
+
+display 'display 0, 1.1, "a|" format delimited by ","';
+display 0, 1.1, "a|" format delimited by ",";
+
+display 'display 0, 1.1, "a|" format delimited by "|" escape ">"';
+display 0, 1.1, "a|" format delimited by "|" escape ">";
+
+{ full }
+
+display 'display 0, 1.1, "a|" format full "%04i %6.3f %10s"';
+display 0, 1.1, "a|" format full "%04i %6.3f %10s";
+
+display 'display 0, 1.1, "a|" format full "%-4i %6.3e %-10s"';
+display 0, 1.1, "a|" format full "%-4i %6.3e %-10s";
+
+display 'display 0, 1.1, "a|" format full "[&&&&] [###.##] b%sb"';
+display 0, 1.1, "a|" format full "[&&&&] [###.##] b%sb";
+

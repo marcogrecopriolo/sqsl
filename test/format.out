@@ -1,0 +1,21 @@
+display 0, 1.1, "a|" format brief
+0,1.1,a|
+display 0, 1.1, "a|" format delimited
+0|1.1|a\||
+display 0, 1.1, "a|" format full
+0 1.1 a|
+display 0, 1.1, "a|" format vertical
+ 0
+ 1.1
+ a|
+
+display 0, 1.1, "a|" format delimited by ","
+0,1.1,a|,
+display 0, 1.1, "a|" format delimited by "|" escape ">"
+0|1.1|a>||
+display 0, 1.1, "a|" format full "%04i %6.3f %10s"
+0000  1.100         a|
+display 0, 1.1, "a|" format full "%-4i %6.3e %-10s"
+0    1.100e+00 a|        
+display 0, 1.1, "a|" format full "[&&&&] [###.##] b%sb"
+0000   1.10 ba|b
