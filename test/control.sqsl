@@ -1,0 +1,108 @@
+{ if }
+
+display "1 > 2";
+if 1 > 2
+then
+    display "if part";
+else
+    display "else part";
+end if;
+
+display "2 > 1";
+if 2 > 1
+then
+    display "if part";
+else
+    display "else part";
+end if;
+
+{ for }
+
+display "9 7 5 3 1";
+for i in 9, 7, 5, 3, 1
+do
+    display i;
+end for;
+
+display "1 to 10";
+for i in 1 to 10
+do
+    display i;
+end for;
+
+{ while }
+
+display "while i < 10 (never)";
+let i = 10;
+while i < 10
+do
+    display i;
+    let i = i + 1;
+end while;
+
+display "while i < 10 (10)";
+let i = 0;
+while i < 10
+do
+    display i;
+    let i = i + 1;
+end while;
+
+{ foreach }
+
+output to "foreach.res";
+for  i in 10, 20, 30, 40, 50
+do
+	display i, i+1, i+2 format delimited;
+end for;
+append to default;
+
+display "foreach... 10 to 50";
+let i=1;
+foreach input from "foreach.res" pattern delimited
+do
+	display i;
+	let i=i+1;
+end foreach;
+
+
+{ clone and wait }
+
+display "clone 10";
+clone 10 into i, p(i);
+        output to "clone"||i||".res";
+        display i, p(i) format delimited;
+    parent
+        display i;
+end clone;
+
+display "wait for 10";
+let i=0;
+wait for p.* into pid, r
+    let i=i+1;
+    input from "clone"||i||".res" pattern delimited;
+end wait;
+
+{ nested }
+display "nested for and if - 1 3 5 7 9";
+for i in 1 to 10
+do
+	if mod(i, 2) == 1
+	then
+		display i;
+	end if;
+end for;
+
+display "nested for / if / for 11,12,2,31,32,4,51...";
+for i in 1 to 10
+do
+	if mod(i, 2) == 1
+	then
+		for j in 1 to 2
+		do
+			display i*10+j;
+		end for;
+	else
+		display i;
+	end if;
+end for;

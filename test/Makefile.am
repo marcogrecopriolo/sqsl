@@ -4,7 +4,7 @@
 #       Copyright (C) 1992-2017 Marco Greco (marco@4glworks.com)
 #
 #       Initial release: Apr 17
-#       Current release: Apr 17
+#       Current release: Jun 17
 #
 #       This library is free software; you can redistribute it and/or
 #       modify it under the terms of the GNU Lesser General Public
@@ -20,8 +20,11 @@
 #       License along with this library; if not, write to the Free Software
 #       Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
 #
-dist_noinst_DATA = test_runner.sh arith.out arith.sqsl format.out format.sqsl
-TESTS = arith.sqsl format.sqsl
+dist_noinst_DATA = test_runner.sh \
+		   arith.out arith.sqsl format.out format.sqsl \
+		   control.out control.sqsl
+				
+TESTS = arith.sqsl format.sqsl control.sqsl
 TEST_EXTENSIONS = .sqsl
 SQSL_LOG_COMPILER = ./test_runner.sh
 AM_SQSL_LOG_FLAGS = -x=cli$(EXEEXT)

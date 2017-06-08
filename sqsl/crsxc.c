@@ -1536,7 +1536,7 @@ int rsx_delimited(fgw_stacktype *s)
     pstate->ssp->stmt->ca=&pstate->oserr;
     ee=(exprstack_t *) fgw_stackpop(s);
     ed=(exprstack_t *) fgw_stackpop(s);
-    ei=(exprstack_t *) fgw_stackpeek(s);
+    ei=(exprstack_t *) fgw_stackpop(s);
     d=rxu_tostring(ed, (char *) &bd, &nd);
     e=rxu_tostring(ee, (char *) &be, &ne);
     if (nd || ne || !*d || !*e)

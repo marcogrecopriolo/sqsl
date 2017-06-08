@@ -308,6 +308,7 @@ static void ldd_nextrow(fgw_stmttype *st)
 		    {
 			st->curstate=ST_OPENED;
 			st_p->fields=fieldcount;
+			TOKSTART=nextline;
 			return;
 		    }
 		}
