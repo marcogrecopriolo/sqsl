@@ -1,0 +1,26 @@
+{ simple regex - populate }
+display "output 10 to 50 separated by |";
+output to "regexin.res";
+for  i in 10, 20, 30, 40, 50
+do
+        display i, i+1, i+2 format delimited;
+end for;
+append to default;
+
+input from "regexin.res" pattern regexp delimited by "\|";
+
+{ more complex example }
+display "output 10 to 50 separated by a*b";
+output to "regexin.res";
+for  i in 10, 20, 30, 40, 50
+do
+        display i, i+1, i+2, i+3 format full "%iab%iaab%ib%i";
+end for;
+append to default;
+
+{ simple regex }
+input from "regexin.res" pattern regexp delimited by "a*b";
+
+{ split }
+display "split by a*b";
+display split "10ab11aab12b13" pattern regexp delimited by "a*b";

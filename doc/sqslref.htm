@@ -413,12 +413,12 @@ following categories
 <P><A NAME="clause_exprlist"><H3>Expression lists</A><HR></H3></P>
 <PRE>[ <A HREF="#clause_expr">&lt;expression&gt;</A> |
   <A HREF="#clause_expr">&lt;expression&gt;</A> <CODE>TO</CODE> <A HREF="#clause_expr">&lt;expression&gt;</A> |
-  <A HREF="#clause_variable">&lt;variable&gt;</A><CODE>.*</CODE> ] |
-  <A HREF="#clause_variable">&lt;variable&gt;</A><CODE>.(<A HREF="#clause_exprlist">&lt;expression list&gt;</A>)</CODE> ] |
-  SPLIT(<A HREF="#clause_exprlist">&lt;expression list&gt;</A>)] <A HREF="#clause_pattern">&lt;pattern clause&gt;</A> ] [, ... ] |
-  DISPLAYLABELS[.(<A HREF="#clause_exprlist">&lt;expression list&gt;</A>)]
-  COLUMNS[.(<A HREF="#clause_exprlist">&lt;expression list&gt;</A>)]
-]</PRE>
+  <A HREF="#clause_variable">&lt;variable&gt;</A><CODE>.*</CODE> |
+  <A HREF="#clause_variable">&lt;variable&gt;</A><CODE>.(<A HREF="#clause_exprlist">&lt;expression list&gt;</A>)</CODE> |
+  SPLIT <A HREF="#clause_expr">&lt;expression&gt;</A> <A HREF="#clause_pattern">&lt;pattern clause&gt;</A> |
+  DISPLAYLABELS[.(<A HREF="#clause_exprlist">&lt;expression list&gt;</A>)] |
+  COLUMNS[.(<A HREF="#clause_exprlist">&lt;expression list&gt;</A>)] |
+][, ...]</PRE>
 <P>Expression lists can include expanded hashes (denoted by the hash name 
 followed by <CODE>.*</CODE> or
 <CODE>.(<A HREF="#clause_exprlist">&lt;expression list&gt;</A>)</CODE>, when
@@ -873,7 +873,7 @@ input data row</LI>
     <CODE>$<A HREF="#clause_expr">&lt;expression&gt;</A></CODE> (a la awk) within
     the <A HREF="#clause_aggregate">aggregate clause</A></LI>
 <LI>Similarly, <CODE>WHEN <A HREF="#clause_expr">&lt;boolean expression&gt;</A> THEN</CODE> within the
-    <A HREF="#clause_aggregate">aggregate clause</A></LI> can be replaced by
+    <A HREF="#clause_aggregate">aggregate clause</A> can be replaced by
     <CODE>(<A HREF="#clause_expr">&lt;boolean expression&gt;</A>)</CODE>. Be mindful that the
     <A HREF="#clause_aggregate">aggregate clause</A> cannot mix and match the two syntax variations.</LI>
 <LI><CODE>CAST(<A HREF="#clause_expr">&lt;expression&gt;</A>, [INT[EGER]|FLOAT|DEC[IMAL]|MONEY|DATE|DATETIME

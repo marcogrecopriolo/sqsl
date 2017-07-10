@@ -1,0 +1,41 @@
+{ simple delimited - populate }
+display "output 10 to 50";
+output to "patternin.res";
+for  i in 10, 20, 30, 40, 50
+do
+        display i, i+1, i+2 format delimited;
+end for;
+append to default;
+
+display "input pattern delimited";
+input from "patternin.res" pattern delimited;
+
+display "input pattern delimited by";
+input from "patternin.res" pattern delimited by "|";
+
+display "input pattern delimited by | escape \\";
+input from "patternin.res" pattern delimited by "|" escape "\\";
+
+display "output 10 to 50";
+output to "patternin.res";
+for  i in 10, 20, 30, 40, 50
+do
+        display i, i+1, ascii(i+64), i+2 format full "%i;%i;%s>;%i";
+end for;
+append to default;
+
+display "input pattern delimited by ; escape >";
+input from "patternin.res" pattern delimited by ";" escape ">";
+
+{ split }
+display "split delimited";
+display split "10|20|30|" pattern delimited;
+
+display "split delimited by";
+display split "10|20|30|" pattern delimited by "|";
+
+display "split delimited by | escape \\";
+display split "10|20|30|" pattern delimited by "|" escape "\\";
+
+display "split delimited by ; escape >";
+display split "10;20>;30;" pattern delimited by ";" escape ">";

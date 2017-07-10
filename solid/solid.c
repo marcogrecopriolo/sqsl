@@ -6,7 +6,7 @@
 	Copyright (C) 1992-2017 Marco Greco (marco@4glworks.com)
 
 	Initial release: Oct 08
-	Current release: Jan 17
+	Current release: Jul 17
 
 	This library is free software; you can redistribute it and/or
 	modify it under the terms of the GNU Lesser General Public
@@ -69,6 +69,7 @@ typedef struct fgw_solidstmt
     sqslda_t *sqslda_out;
     char *inbuf;		/* placeholders buffer */
     int phcount;
+    int sqslda_entries;         /* current # of allocated placeholder entries */
     sqslda_t *sqslda_in;
     exprstack_t *exprlist;	/* stack containing one row of data */
 } fgw_solidstmttype;
@@ -572,17 +573,26 @@ DLLDECL void sqd_allocateda(fgw_stmttype *st, int entries)
 {
     fgw_solidstmttype *st_p=(fgw_solidstmttype *) st->sqlstmt;
     sqslda_t *c;
-    int i;
-    char *s;
+    int i, clear_entries;
+    char *s, *inbuf;
 
-    if (st->options & SO_ALLOCD)
-	return;
-    else if (st_p==NULL)
+    if (st_p==NULL)
 	st->ca->sqlcode=RC_INSID;
-    else if ((st_p->inbuf=(char *) malloc(entries*CNVSTRSIZE)) &&
-	     (st_p->sqslda_in=(sqslda_t *) malloc(entries*sizeof(sqslda_t))))
+    st_p->phcount=0;
+    clear_entries=(st_p->sqslda_entries>0);
+    if (st_p->sqslda_entries>=entries)
+        return;
+    if (inbuf=realloc(st_p->inbuf, entries*CNVSTRSIZE))
+	st_p->inbuf=inbuf;
+    else
     {
-	st_p->phcount=entries;
+	st->ca->sqlcode=RC_NOMEM;
+	return;
+    }
+    if ((c=(sqslda_t *) realloc(st_p->sqslda_in, entries*sizeof(sqslda_t))))
+    {
+	st_p->sqslda_in=c;
+	st_p->sqslda_entries=entries;
 	memset(st_p->sqslda_in, 0, entries*sizeof(sqslda_t));
 /*
 ** initialize placeholders
@@ -594,8 +604,13 @@ DLLDECL void sqd_allocateda(fgw_stmttype *st, int entries)
 	    c->sqldata=s;
 	    *s='\0';
 	    s+=CNVSTRSIZE;
+/*
+** unbind existing parameters
+*/
+	if (clear_entries)
+	    IGNORE SQLBindParameter(st_p->stmtid, (SQLUSMALLINT) i+1, SQL_PARAM_INPUT,
+			    c->sqltype, c->sqltype, 0, (SQLSMALLINT) 0, NULL, 0, &c->rlen);
 	}
-	st->options|=SO_ALLOCD;
     }
     else
 	st->ca->sqlcode=RC_NOMEM;
@@ -612,8 +627,9 @@ DLLDECL void sqd_bindda(fgw_stmttype *st, int entry, int type,
     exprstack_t e;
     int ind;
 
-    if (st_p==NULL || entry<0 || entry>=st_p->phcount)
+    if (st_p==NULL || entry<0 || entry>=st_p->sqslda_entries)
 	return;
+    st_p->phcount++;
     c=st_p->sqslda_in+entry;
     e.type=type;
     e.length=size;

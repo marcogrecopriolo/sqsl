@@ -1,0 +1,202 @@
+{ connect - database }
+display "database sysmaster";
+database sysmaster;
+
+{ simple select }
+display "simple select";
+select tabid, tabname from systables where tabid <=2;
+
+{ connect and disconnect }
+display "close database";
+close database;
+
+display "connect";
+connect to "sysmaster";
+
+display "disconnect";
+disconnect "sysmaster";
+
+display "disconnect while unconnected";
+whenever error continue;
+disconnect "sysmaster";
+display dbinfo("sqlca.sqlcode");
+
+display "select while disconnected";
+select tabid, tabname from systables where tabid <=2;
+display dbinfo("sqlca.sqlcode");
+whenever error stop;
+
+
+display "connect using source";
+connect to "sysmaster" source ifmx;
+
+{ simple select with using }
+display "simple select with using";
+select tabid, tabname from systables where tabid <=? using 2;
+
+{ simple select with format }
+display "select with format";
+select tabid, tabname from systables where tabid <=2 format full "[##] %s";
+
+{ simple select with format with display labels}
+display "select with format and display labels";
+select tabid, tabname from systables where tabid <=2 format full "[#####] %s" headers displaylabels;
+
+{ simple select with using and format }
+display "select with using and format";
+select tabid, tabname from systables where tabid <=? using 2 format full "[##] %s";
+
+{ simple select with using format and into }
+display "select with using format and into";
+select tabid, tabname from systables where tabid <=? using 2 into i, n format full "[##] %s";
+display i, n format full "[##] %s";
+
+{ simple select with using format into and connection }
+display "select with using format and into and connection";
+select tabid, tabname from systables where tabid <=? using 2 connection "sysmaster" into i, n format full "[##] %s";
+display i, n format full "[##] %s";
+
+{ foreach }
+display "foreach into";
+foreach select tabid, tabname from systables where tabid <=2 into i, n
+do
+   display i, n format full "[##] %s";
+end foreach;
+
+{ foreach with format }
+display "foreach into format";
+foreach select tabid, tabname from systables where tabid <=2 into i, n
+    format full "[##] %s"
+do
+   display i, n format full "[##] %s";
+end foreach;
+
+{ foreach with cursor }
+display "foreach with cursor ";
+foreach cur1 cursor for select tabid+10, tabname from systables where tabid <=2 into i, n
+do
+   display i, n format full "[##] %s";
+end foreach;
+
+{ foreach with cursor with hold }
+display "foreach with cursor with hold";
+foreach cur1 cursor with hold for select tabid+20, tabname from systables where tabid <=2 into i, n
+do
+   display i, n format full "[##] %s";
+end foreach;
+
+{ prepare }
+display "prepare";
+prepare a from select tabid, tabname from systables where tabid <=2;
+
+{ execute }
+display "execute";
+execute a;
+
+{ foreach execute }
+display "foreach execute";
+foreach execute a into i, n
+do
+   display i, n format full "[##] %s";
+end foreach;
+
+{ execute - check that foreach clauses no longer apply }
+display "execute different clauses";
+execute a format vertical "%i a %s";
+
+{ execute - check that previous clauses no longer apply }
+display "execute different clauses";
+execute a;
+
+{ check that we can't free or execute prepared statement being executed }
+display "foreach execute - test reexecution";
+whenever error continue;
+foreach execute a into i, n
+do
+   display i, n format full "[##] %s";
+   free a;
+   display dbinfo("sqlca.sqlcode") format full "on free %i";
+   execute a;
+   display dbinfo("sqlca.sqlcode") format full "on execute %i";
+end foreach;
+whenever error stop;
+
+{ free }
+display "free";
+free a;
+whenever error continue;
+
+display "execute freed statement";
+execute a;
+whenever error stop;
+display dbinfo("sqlca.sqlcode");
+
+{ prepare with placeholders }
+display "prepare with placeholders";
+prepare b from select tabid, tabname from systables where tabid <=?;
+
+{ these should be done in reverse - but I seem to have a CliSDK bug
+  in my hands, this should fail with a -254, not sqlnotfound }
+
+{ execute }
+display "execute w/o using";
+whenever error continue;
+execute b;
+whenever error stop;
+display dbinfo("sqlca.sqlcode") format full "clisdk defect - should be -254, get 100 instead: %i";
+
+{ execute using }
+display "execute using";
+execute b using 2;
+
+display "free again";
+free b;
+
+{ prepare with placeholders and using };
+display "prepare with placeholders and using";
+prepare a from select tabid, tabname from systables where tabid <=? using 2;
+
+{ execute }
+display "execute";
+execute a;
+
+{ execute using }
+display "execute using";
+whenever error continue;
+execute a using 2;
+whenever error stop;
+display dbinfo("sqlca.sqlcode");
+
+display "free again";
+free a;
+
+{ redirection }
+display "create dest table";
+create temp table dest(id int, name char(128));
+select id, name from dest format full "[##] %s";
+
+{ simple redirection }
+display "simple redirection";
+select tabid+10, tabname from systables where tabid <=2 insert into dest values(?, ?);
+select id, name from dest format full "[##] %s";
+
+{ redirection with connection clauses }
+display "redirection with connection clauses";
+select tabid+20, tabname from systables where tabid <=2 connection "sysmaster"
+    insert into dest values(?, ?) connection "sysmaster";
+select id, name from dest format full "[##] %s";
+
+{ redirection with prepared source }
+display "prepare source";
+prepare c from select tabid, tabname from systables where tabid <=? using 2;
+display "redirection with prepared source";
+execute c insert into dest values(?, ?) connection "sysmaster";
+select id, name from dest format full "[##] %s";
+
+{ redirection with prepare source }
+display "prepare target";
+prepare d from insert into dest values(?, ?);
+display "redirection with prepared target";
+select tabid+30, tabname from systables where tabid <=2 connection "sysmaster"
+    execute d;
+select id, name from dest format full "[##] %s";

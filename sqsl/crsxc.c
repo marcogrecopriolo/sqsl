@@ -3,10 +3,10 @@
 
 	The 4glWorks application framework
 	The Structured Query Scripting Language
-	Copyright (C) 1992-2016 Marco Greco (marco@4glworks.com)
+	Copyright (C) 1992-2017 Marco Greco (marco@4glworks.com)
 
 	Initial release: Jan 97
-	Current release: Nov 16
+	Current release: Jul 17
 
 	This library is free software; you can redistribute it and/or
 	modify it under the terms of the GNU Lesser General Public
@@ -171,7 +171,6 @@ int rsx_foreach(pcode_t *fmt)
 	}
         else
         {
-            pstate->ssp->stmt->refcnt++;
             if (status=rsx_setformat(pstate->ssp->stmt, fmt))
 		goto bad;
             if (pstate->ssp->stmt->fmt_type!=FMT_NULL)
@@ -190,7 +189,12 @@ int rsx_foreach(pcode_t *fmt)
         if (status==RC_NOTFOUND)
             status=0;
 	else if (status==0)
+	{
+
+	    /* cant free the statement while used in an active foreach */
+            pstate->ssp->stmt->refcnt++;
 	    c.state=S_ACTIVE;
+	}
     }
     c.stmt=pstate->ssp->stmt;
     pstate->ssp->stmt=NULL;
@@ -534,6 +538,9 @@ void rsx_endforeach(controlstack_t *c)
 	    if (c->stmt->fmt_type!=FMT_NULL)
 		    pstate->style=c->style;
 	    status=0;
+
+	    /* getting out of the loop: can free now */
+	    c->stmt->refcnt--;
 	    c->state=S_DISABLED;
 	    break;
 	  case 0:
@@ -1204,12 +1211,19 @@ int rsx_executeout(fgw_stacktype *s)
 
     e=(exprstack_t *) fgw_stackpop(&pstate->exprlist);
     stid=rxu_toint(e, NULL);
+    pstate->ssp->stmt=NULL;
     if (!(st=rqx_findstmt(stid, pstate->signature | SS_INTERNAL)))
          rc=RC_INSID;
+
+    /* if the statement is already being run as part of a foreach, we can't execute it */
+    else if (st->refcnt)
+        rc=RC_USSTM;
     else
     {
 	pstate->ssp->stmt=st;
-	if (dummyst->options & SO_DONEFMT && st->fmt_type)
+	if (pstate->curstmt==dummyst)
+	    pstate->curstmt=st;
+	if (dummyst->fmt_type && st->fmt_type)
 	    rc=RC_SPFMT;
 	else if (dummyst->usingvars.pcodehead && st->usingvars.pcodehead)
 	    rc=RC_SPPHD;
@@ -1220,6 +1234,8 @@ int rsx_executeout(fgw_stacktype *s)
 	if (rc)
 	    goto bad;
 
+	if (dummyst->fmt_type)
+		st->fmt_type=dummyst->fmt_type;
 	/* move code from placeholder statement to prepared
 	   swappcode is necessary so that freestatement doesn't actually zap the pcode */
 	if (dummyst->usingvars.pcodehead)
@@ -1234,6 +1250,8 @@ int rsx_executeout(fgw_stacktype *s)
 bad:
     rqx_freestatement(dummyst);
     rxu_freetssstack(e);
+    if (rc)
+	pstate->ca.sqlcode=rc;
     return rc;
 }
 
@@ -1250,11 +1268,18 @@ int rsx_executein(fgw_stacktype *s)
 
     e=(exprstack_t *) fgw_stackpop(&pstate->exprlist);
     stid=rxu_toint(e, NULL);
+    pstate->ssp->stmt=NULL;
     if (!(st=rqx_findstmt(stid, pstate->signature | SS_INTERNAL)))
          rc=RC_INSID;
+
+    /* if the statement is already being run as part of a foreach, we can't execute it */
+    else if (st->refcnt)
+        rc=RC_USSTM;
     else
     {
 	pstate->ssp->stmt=st;
+	if (pstate->curstmt==dummyst)
+	    pstate->curstmt=st;
 	if (dummyst->options & SO_DONEFMT)
 	    rc=RC_SPFMT;
 	else if (dummyst->usingvars.pcodehead && st->usingvars.pcodehead)
@@ -1276,6 +1301,8 @@ int rsx_executein(fgw_stacktype *s)
 bad:
     rqx_freestatement(dummyst);
     rxu_freetssstack(e);
+    if (rc)
+	pstate->ca.sqlcode=rc;
     return rc;
 }
 
@@ -1296,15 +1323,19 @@ int rsx_free()
     if (!(st=rqx_findstmt(s, pstate->signature | SS_INTERNAL)))
     {
         status=RC_INSID;
-	return -1;
+	goto bad;
     }
     if (st->refcnt)
     {
         status=RC_USSTM;
-	return -1;
+	goto bad;
     }
     rqx_freestatement(st);
     return 0;
+
+bad:
+    pstate->ca.sqlcode=status;
+    return -1;
 }
 
 /*
@@ -1313,7 +1344,7 @@ int rsx_free()
 */
 int rsx_nonredirected(pcode_t *fmt)
 {
-    int r;
+    int r=0;
     char *query;
 
     /* set up input stream if not an sql statement */
@@ -1401,6 +1432,11 @@ int rsx_redirected(pcode_t *fmt)
     /* TODO whenever error continue for file open */
     if ((status=rxx_execute(NULL, NULL)))
 	goto bad;
+    if (pstate->stmtstack[1].stmt->phcount==0)
+    {
+	status=RC_NOSTR;
+	goto bad;
+    }
     if (pstate->stmtstack[0].stmt->options & SO_NOTEXT)
         query="";
     else
@@ -1816,8 +1852,12 @@ static int rsx_setformat(fgw_stmttype *st_p, pcode_t *fmt)
     if (st_p->fmt_type!=FMT_DELIMITED)
     {
 	if (t->type!=EMPTYMARKER)
+	{
 	    for (i=c, f=t; i; i--, f++)
 		rqf_setheader(st_p, rxu_tostring(f, (char *) &cbuf, NULL));
+	}
+	else
+	    c=1;
 	t--;
 	fgw_stackdrop(&st_p->stack, c);
     }
@@ -1919,7 +1959,9 @@ static int rsx_whenever()
         else
 	    rc=-1;
     }
-    if (pstate->ssp->stmt->options & SO_REALPREPARED)
+    if (!pstate->ssp->stmt)
+	return rc;
+    else if (pstate->ssp->stmt->options & SO_REALPREPARED)
 	rqx_closestatement(pstate->ssp->stmt);
     else
 	rqx_freestatement(pstate->ssp->stmt);

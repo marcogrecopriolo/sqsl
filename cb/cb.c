@@ -6,7 +6,7 @@
 	Copyright (C) 1992-2017 Marco Greco (marco@4glworks.com)
 
 	Initial release: Jun 16
-	Current release: Jan 17
+	Current release: Jul 17
 
 	This library is free software; you can redistribute it and/or
 	modify it under the terms of the GNU Lesser General Public
@@ -560,14 +560,11 @@ DLLDECL void sqd_allocateda(fgw_stmttype *st, int entries)
 {
     fgw_cbstmttype *st_p=(fgw_cbstmttype *) st->sqlstmt;
 
-    st_p->inbuf.buflen=0;
-    if (st->options & SO_BOUND)
-	return;
-    else if (st_p==NULL)
+    if (st_p==NULL)
 	st->ca->sqlcode=RC_INSID;
     else
     {
-	st->options|=SO_BOUND;
+	st_p->inbuf.buflen=0;
 	st_p->phcount=entries;
     }
 }

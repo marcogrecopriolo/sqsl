@@ -858,7 +858,9 @@ static int rqx_processusing(fgw_stmttype *st_p, fgw_sourcetype *src, int bind)
     int rc, i;
     exprstack_t *e;
 
-    if (st_p->usingvars.pcodehead && bind)
+    if (!bind)
+	return 0;
+    if (st_p->usingvars.pcodehead)
     {
 	st_p->ca->sqlcode=0;
         if (rc=rxx_execute(&st_p->usingvars, st_p))
@@ -887,6 +889,13 @@ static int rqx_processusing(fgw_stmttype *st_p, fgw_sourcetype *src, int bind)
 	** and the open or execute
 	*/
 	fgw_stackdrop(&st_p->stack, st_p->stack.count);
+    }
+    else if (src->sqd_allocateda)
+    {
+	sqd_break=src->sqd_break;
+	(src->sqd_allocateda)(st_p, 0);
+	sqd_break=NULL;
+	st_p->options&=~SO_BOUND;
     }
     return 0;
 bad_exit:

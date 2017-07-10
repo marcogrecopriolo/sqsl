@@ -3,10 +3,10 @@
 
 	The 4glWorks application framework
 	The Structured Query Scripting Language
-	Copyright (C) 1992-2016 Marco Greco (marco@4glworks.com)
+	Copyright (C) 1992-2017 Marco Greco (marco@4glworks.com)
 
 	Initial release: Mar 03
-	Current release: May 16
+	Current release: Jun 17
 
 	This library is free software; you can redistribute it and/or
 	modify it under the terms of the GNU Lesser General Public
@@ -36,6 +36,8 @@
 #define RC_CONTINUE     0xfe000069	/* AGGREGATE clause skips row */
 #define RC_PAUSE	0xfe00006a	/* internally used to pause pcode */
 
+#define RC_ISFLOW(s) ((s)>=RC_NROWS && (s)<=RC_PAUSE)
+
 /*
 ** scanner errors
 */
@@ -43,6 +45,7 @@
 #define RC_BADCMT	0xfd000097	/* unbalanced comment */
 #define RC_EXPINJ	0xfd000098	/* expansion crosses statements */
 
+#define RC_ISSCAN(s) ((s)>=RC_BADQT && (s)<=RC_EXPINJ)
 
 /*
 ** internal errors
@@ -126,6 +129,9 @@
 #define RC_NLNKD	0xfe0003e5	/* Feature not linked */
 #define RC_TMDLL	0xfe0003e6	/* no more space for DLLs */
 #define RC_NIMPL	0xfe0003e7	/* not implemented */
+
+#define RC_ERRSKIP(x) ((x) != RC_PSNTX && (x) != RC_NOTFOUND && \
+			!RC_ISEXP(x) && !RC_ISSCAN(x) && !RC_ISFLOW(x))
 
 #define CSQRC_H
 #endif

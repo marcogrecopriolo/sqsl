@@ -366,12 +366,12 @@ Expression lists
 
   [ <expression> |
     <expression> TO <expression> |
-    <variable>.* ] |
-    <variable>.(<expression_list>) ] |
-    SPLIT(<expression_list>)] <pattern_clause> ] [, ... ] |
-    DISPLAYLABELS[.(<expression_list>)]
-    COLUMNS[.(<expression_list>)]
-  ]
+    <variable>.*  |
+    <variable>.(<expression_list>) |
+    SPLIT <expression> <pattern_clause> |
+    DISPLAYLABELS[.(<expression_list>)] |
+    COLUMNS[.(<expression_list>)] |
+  ][, ...]
 
 Expression lists can include expanded hashes (denoted by the hash name followed
 by .* or .(<expression_list>), when only a subset of a hash is required), and

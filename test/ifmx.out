@@ -1,0 +1,115 @@
+database sysmaster
+simple select
+1,systables
+2,syscolumns
+close database
+connect
+disconnect
+disconnect while unconnected
+600
+select while disconnected
+-349
+connect using source
+simple select with using
+1,systables
+2,syscolumns
+select with format
+ 1 systables
+ 2 syscolumns
+select with format and display labels
+tabid tabname 
+    1 systables
+    2 syscolumns
+select with using and format
+ 1 systables
+ 2 syscolumns
+select with using format and into
+ 1 systables
+ 2 syscolumns
+ 2 syscolumns
+select with using format and into and connection
+ 1 systables
+ 2 syscolumns
+ 2 syscolumns
+foreach into
+ 1 systables
+ 2 syscolumns
+foreach into format
+ 1 systables
+ 1 systables
+ 2 syscolumns
+ 2 syscolumns
+foreach with cursor 
+11 systables
+12 syscolumns
+foreach with cursor with hold
+21 systables
+22 syscolumns
+prepare
+execute
+1,systables
+2,syscolumns
+foreach execute
+ 1 systables
+ 2 syscolumns
+execute different clauses
+ 1 a 
+ systables
+
+ 2 a 
+ syscolumns
+
+execute different clauses
+1,systables
+2,syscolumns
+foreach execute - test reexecution
+ 1 systables
+on free 620
+on execute 620
+ 2 syscolumns
+on free 620
+on execute 620
+free
+execute freed statement
+201
+prepare with placeholders
+execute w/o using
+clisdk defect - should be -254, get 100 instead: 100
+execute using
+1,systables
+2,syscolumns
+free again
+prepare with placeholders and using
+execute
+1,systables
+2,syscolumns
+execute using
+622
+free again
+create dest table
+simple redirection
+11 systables
+12 syscolumns
+redirection with connection clauses
+11 systables
+12 syscolumns
+21 systables
+22 syscolumns
+prepare source
+redirection with prepared source
+11 systables
+12 syscolumns
+21 systables
+22 syscolumns
+ 1 systables
+ 2 syscolumns
+prepare target
+redirection with prepared target
+11 systables
+12 syscolumns
+21 systables
+22 syscolumns
+ 1 systables
+ 2 syscolumns
+31 systables
+32 syscolumns

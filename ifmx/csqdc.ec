@@ -6,7 +6,7 @@
 	Copyright (C) 1992-2017 Marco Greco (marco@4glworks.com)
 
 	Initial release: Jan 97
-	Current release: Jan 17
+	Current release: Jul 17
 
 	This library is free software; you can redistribute it and/or
 	modify it under the terms of the GNU Lesser General Public
@@ -95,6 +95,7 @@ typedef struct fgw_ifxstmt
     char *sqlbuf;		/* data returned from engine */
     struct sqlda *sqlda_ptr;	/* output sqlda area */
     struct sqlda sqlda_in;	/* input sqlda area */
+    int sqlda_entries;		/* current # of allocated placeholder entries */
     exprstack_t *exprlist;	/* stack containing one row of data */
 } fgw_ifxstmttype;
 EXEC SQL END DECLARE SECTION;
@@ -263,7 +264,7 @@ EXEC SQL END DECLARE SECTION;
 */
 	if (st_p->sqlda_in.sqlvar)
 	{
-	    for (i=st_p->sqlda_in.sqld, c=st_p->sqlda_in.sqlvar;
+	    for (i=st_p->sqlda_entries, c=st_p->sqlda_in.sqlvar;
 		 i; i--, c++)
 		if (c->sqltype==SQLTEXT || c->sqltype==SQLBYTES)
 		{
@@ -622,18 +623,36 @@ int entries;
 {
     fgw_ifxstmttype *st_p=(fgw_ifxstmttype *) st->sqlstmt;
     struct sqlvar_struct *sqlvar;
+    sqlva *c;
     int i;
     short *n;
 
-    if (st->options & SO_ALLOCD)
-	return;
-    else if (st_p==NULL)
+    if (st_p==NULL)
 	st->ca->sqlcode=RC_INSID;
-    else if (st_p->sqlda_in.sqlvar=(struct sqlvar_struct *)
-				malloc(entries*(sizeof(struct sqlvar_struct)+
-						sizeof(int))))
+
+/*
+** free prexisting blobs
+*/
+    if (st_p->sqlda_in.sqlvar)
     {
-	st_p->sqlda_in.sqld=entries;
+	for (i=st_p->sqlda_entries, c=st_p->sqlda_in.sqlvar;
+	     i; i--, c++)
+	    if (c->sqltype==SQLTEXT || c->sqltype==SQLBYTES)
+	    {
+		if (((ifx_loc_t *) c->sqldata)->loc_mflags)
+		    free(((ifx_loc_t *) c->sqldata)->loc_buffer);
+		free(c->sqldata);
+		c->sqltype=CINTTYPE;
+	    }
+    }
+    st_p->sqlda_in.sqld=0;
+    if (st_p->sqlda_entries>=entries)
+	return;
+    if (sqlvar=(struct sqlvar_struct *) realloc(st_p->sqlda_in.sqlvar,
+			entries*(sizeof(struct sqlvar_struct)+sizeof(int))))
+    {
+	st_p->sqlda_in.sqlvar=sqlvar;
+	st_p->sqlda_entries=entries;
 /*
 ** just to be on the safe side
 */
@@ -664,8 +683,10 @@ char *value;
     fgw_ifxstmttype *st_p=(fgw_ifxstmttype *) st->sqlstmt;
     struct sqlvar_struct *sqlvar;
 
-    if (st_p==NULL || entry<0 || entry>=st_p->sqlda_in.sqld )
+    if (st_p==NULL || entry<0 || entry>=st_p->sqlda_entries)
 	return;
+    st_p->sqlda_in.sqld++;
+	
     sqlvar=st_p->sqlda_in.sqlvar+entry;
 /*
 ** clean up previous ifx_loc_t allocations, if any

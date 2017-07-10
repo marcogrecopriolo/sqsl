@@ -493,6 +493,7 @@ then
     then
 	AC_SUBST(REGEX_DEFINE, "-DHAVE_REGEX -I$ac_cv_regex_h")
 	AC_SUBST(REXEC_LIBRARY)
+	AC_SUBST(REGEXTEST, regex.sqsl)
     fi
 fi
 
@@ -570,6 +571,7 @@ then
     else
 	AC_SUBST(IFMXSO, ifmx)
     fi
+    AC_SUBST(IFMXTEST, ifmx.sqsl)
 else
     case "$OS" in
       CYGWIN*)
@@ -586,6 +588,7 @@ else
 	;;
     esac
     AC_SUBST(IFMXSO, ifmx)
+    AC_SUBST(IFMXTEST, ifmx.sqsl)
 fi
 if test -n "$I4GLVER"
 then

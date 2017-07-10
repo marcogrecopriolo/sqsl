@@ -22,9 +22,12 @@
 #
 dist_noinst_DATA = test_runner.sh \
 		   arith.out arith.sqsl format.out format.sqsl \
-		   control.out control.sqsl
+		   control.out control.sqsl simple.out simple.sqsl \
+		   aggregate.out aggregate.sqsl pattern.sqsl pattern.out \
+		   regex.out regex.sqsl ifmx.out ifmx.sqsl
 				
-TESTS = arith.sqsl format.sqsl control.sqsl
+TESTS = arith.sqsl format.sqsl control.sqsl simple.sqsl aggregate.sqsl \
+        pattern.sqsl $(REGEXTEST) $(IFMXTEST)
 TEST_EXTENSIONS = .sqsl
 SQSL_LOG_COMPILER = ./test_runner.sh
 AM_SQSL_LOG_FLAGS = -x=cli$(EXEEXT)

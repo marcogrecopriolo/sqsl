@@ -7,7 +7,7 @@
 	Copyright (C) 1992-2017 Marco Greco (marco@4glworks.com)
 
 	Initial release: Mar 00
-	Current release: Jan 16
+	Current release: Jun 17
 
 	This library is free software; you can redistribute it and/or
 	modify it under the terms of the GNU Lesser General Public
@@ -804,7 +804,7 @@ fselect:  newstcl fsel1	{ $$=$2; }
 
 			    i=rxx_newinstr(pstate);
 			    FAILCHECK
-			    i->func=rsx_executein;
+			    i->func=rsx_executeout;
 			    markend_sql($<tstart>1);
 			    endstmt_sql();
 			    $$=NULL;
@@ -1055,7 +1055,7 @@ src:	 _empty_	{
 ** what we don't understand from the first token, we just pass to the engine
 */
 sql:	  sql1
-	| PREPARE ovarcl FROM psql newstcl usingres tmpcon
+	| PREPARE ovarcl FROM newstcl psql usingres tmpcon
 			      aggcl into format LASTOK {
 			    endstmt_sql();
 			    if (rsx_prepare(&$10))
@@ -1443,8 +1443,7 @@ dstcl:	  into format LASTOK 	{
 ** only an insert with values clause or execute procedure, both with
 ** placeholders will do!
 */
-			    if (!pstate->stmtstack[1].stmt->phcount ||
-				(pstate->parseroptions & VALUESHACK))
+			    if ((pstate->parseroptions & VALUESHACK))
 				FAIL(RC_NOSTR);
 			    if (rsx_redirected())
 				FAILCHECK;
@@ -2877,7 +2876,7 @@ int sql_parser(parserstate_t *state)
 ** clear error if WHENEVER ERROR CONTINUE,
 ** unless it's a syntax error
 */
-    if ((pstate->flags & PF_ERRORCONT) && (status!=RC_PSNTX))
+    if ((pstate->flags & PF_ERRORCONT) && RC_ERRSKIP(status))
 	status=0;
 /*
 ** stored procedures and outer layers require buffer untouched

@@ -656,6 +656,7 @@ A4GLVER
 SQ_freecurs
 I4GLUI
 C4GL
+IFMXTEST
 IFMXSO
 ESQLINC
 ESQL
@@ -664,6 +665,7 @@ ESQLVER
 YACC
 YACCCMP
 RANLIB
+REGEXTEST
 REXEC_LIBRARY
 REGEX_LIBRARY
 REGEX_DEFINE
@@ -2812,7 +2814,7 @@ am__tar='$${TAR-tar} chof - "$$tardir"' am__untar='$${TAR-tar} xf -'
 
 
 
-PACKAGE_DATE="2017-04-24 12:22:52 +0100"
+PACKAGE_DATE="2017-06-27 16:12:24 +0100"
 
 
 
@@ -5072,6 +5074,8 @@ $as_echo "$ac_cv_lib_regex" >&6; }
 	REGEX_DEFINE="-DHAVE_REGEX -I$ac_cv_regex_h"
 
 
+	REGEXTEST=regex.sqsl
+
     fi
 fi
 
@@ -5429,6 +5433,8 @@ then
 	IFMXSO=ifmx
 
     fi
+    IFMXTEST=ifmx.sqsl
+
 else
     case "$OS" in
       CYGWIN*)
@@ -5449,6 +5455,8 @@ else
 	;;
     esac
     IFMXSO=ifmx
+
+    IFMXTEST=ifmx.sqsl
 
 fi
 if test -n "$I4GLVER"

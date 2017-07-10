@@ -1,0 +1,21 @@
+{ populate source }
+output to "aggrsource.res";
+for  i in 10, 20, 30, 40, 50
+do
+        display i, i+1, i+2 format delimited;
+end for;
+append to default;
+
+{ baseline }
+display "input 10 to 50 - baseline";
+input from "aggrsource.res" pattern delimited;
+
+{ test and alter field, awk syntax }
+display "input 10 to 50 - 31->35";
+input from "aggrsource.res" pattern delimited
+    aggregate ($2==31) $2+=4;
+
+{ test and alter field, sql syntax }
+display "input 10 to 50 - 42->47";
+input from "aggrsource.res" pattern delimited
+    aggregate when column(3)==42 then let column(3)+=5;

@@ -1,0 +1,172 @@
+{ let }
+display "constant assignment";
+let v1 = 3;
+display v1;
+
+display "shorthand add";
+let v1 += 4;
+display v1;
+
+display "shorthand subtract";
+let v1 -= 5;
+display v1;
+
+display "shorthand multiply";
+let v1 *= 6;
+display v1;
+
+display "shorthand divide";
+let v1 /= 7;
+display v1;
+
+display "shorthand cast";
+let v2 = 3.5;
+let v2 ::=int;
+display v2;
+
+display "shorthand concat";
+let v2 ||=45;
+display v2;
+
+{ store }
+display "store expression list";
+store v1, v2 into v3, v4;
+display v3, v4;
+
+display "store expression list with cast";
+store v1, v2 + 1.6  into v3, v4::int;
+display v3, v4;
+
+{ dispose }
+display "disposing v4";
+dispose v4;
+display v4;
+
+{ invoke }
+display "invoke";
+invoke sin(0.56) returning v5;
+display v5;
+
+{ IO }
+
+{ output / populate source }
+display "output 10 to 50";
+output to "inputsource.res";
+for  i in 10, 20, 30, 40, 50
+do
+        display i, i+1, i+2 format delimited;
+end for;
+
+{ append to default... }
+append to default;
+
+{ input }
+display "input 10 to 50";
+input from "inputsource.res" pattern delimited;
+
+{ read }
+let a=fopen("inputsource.res", "r");
+display "read 10 to 50";
+read from a pattern delimited;
+let r=sclose(a);
+display r, dbinfo("errno") format full "close result %i errno %i";
+
+
+{ pipe from }
+display "pipe from 10 to 50";
+pipe from "cat inputsource.res" pattern delimited;
+display dbinfo("$?"), dbinfo("errno") format full "exit code %i, errno %i";
+
+
+{ write }
+let a=fopen("inputsource.res", "w");
+display "write 110 to 150";
+write to a;
+for  i in 110, 120, 130, 140, 150
+do
+        display i, i+1, i+2 format delimited;
+end for;
+let b=sclose(a);
+let dbe = dbinfo("errno");
+append to default;
+run "cat inputsource.res";
+display dbe format full "errno %i";
+
+{ pipe to }
+display "pipe to 210 to 250";
+pipe to "cat > inputsource.res";
+for  i in 210, 220, 230, 240, 250
+do
+        display i, i+1, i+2 format delimited;
+end for;
+let dbe = dbinfo("errno");
+let dbr = dbinfo("$?");
+append to default;
+run "cat inputsource.res";
+display dbr, dbe format full "exit code %i, errno %i";
+
+{ append }
+display "append to file 260 to 290";
+append to "inputsource.res";
+for  i in 260, 270, 280, 290
+do
+        display i, i+1, i+2 format delimited;
+end for;
+append to default;
+run "cat inputsource.res";
+
+{ output format }
+display "html";
+output format html;
+display "1", "2", "3";
+output format plain;
+display "and back to plain";
+
+{ output width }
+display "width 10";
+output width 10;
+display "12345", "67890";
+display "12345", "67890" format full;
+
+output width 80;
+display "width 80";
+display "12345", "67890";
+display "12345", "67890" format full;
+
+{ whenever error }
+display "continue on error";
+whenever error continue;
+let a=1/0;
+display "we didn't stop";
+whenever error stop;
+
+clone 1 into i, p;
+    output to "stop.res";
+    display "continue on error";
+    whenever error continue;
+    let a=1/0;
+    display "we didn't stop";
+    whenever error stop;
+    display "stop on error";
+    let a=1/0;
+    display "we should have stopped";
+end clone;
+run "cat stop.res";
+
+{ exit }
+clone 1 into i, p;
+    output to "exit.res";
+    display "exit with error code";
+    exit 2;
+    display "we should have exited";
+end clone;
+
+wait for p into pid, r;
+	display "exit code";
+	display r;
+end wait;
+run "cat exit.res";
+
+display "exiting";
+exit;
+display "we didn't exit!";

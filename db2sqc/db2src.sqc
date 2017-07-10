@@ -6,7 +6,7 @@
 	Copyright (C) 1992-2017 Marco Greco (marco@4glworks.com)
 
 	Initial release: Mar 03
-	Current release: Jan 17
+	Current release: Jul 17
 
 	This library is free software; you can redistribute it and/or
 	modify it under the terms of the GNU Lesser General Public
@@ -63,6 +63,7 @@ typedef struct fgw_db2stmt
     struct sqlda *sqlda_out;	/* output sqlda area */
     char *inbuf;		/* placeholders buffer */
     struct sqlda *sqlda_in;	/* input sqlda area */
+    int sqlda_entries;		/* current # of allocated placeholder entries */
     exprstack_t *exprlist;	/* stack containing one row of data */
 } fgw_db2stmttype;
 
@@ -948,16 +949,23 @@ int entries;
     struct sqlvar *sqlvar;
     int i;
     short *n;
-    char *s;
+    char *s, *inbuf;
 
-    if (st->options & SO_ALLOCD)
-	return;
-    else if (st_p==NULL)
+    if (st_p==NULL)
 	st->ca->sqlcode=RC_INSID;
-    else if (!init_da(&st_p->sqlda_in, entries) &&
-	     (st_p->inbuf=(char *) malloc(entries*(CNVSTRSIZE+sizeof(int)))))
+    st_p->sqlda_in->sqld=0;
+    if (st_p->sqlda_entries>=entries)
+        return;
+    if (!st_p->sqlda_in && !init_da(&st_p->sqlda_in, entries))
     {
-	st_p->sqlda_in->sqld=st_p->sqlda_in->sqln;
+	st->ca->sqlcode=RC_NOMEM;
+	return;
+    }
+    if (inbuf=(st_p->inbuf=(char *) realloc(st_p->inbuf, entries*(CNVSTRSIZE+sizeof(int)))))
+    {
+	st_p->inbuf=inbuf;
+	st_p->sqlda_entries=entries;
+	st_p->sqlda_in->sqln=entries;
 /*
 ** initialize placeholders
 */
@@ -990,8 +998,10 @@ char *value;
     exprstack_t e;
     int ind;
 
-    if (st_p==NULL || entry<0 || entry>=st_p->sqlda_in->sqld )
+    if (st_p==NULL || entry<0 || entry>=st_p->sqlda_entries)
 	return;
+    st_p->sqlda_in->sqld++;
+
     sqlvar=st_p->sqlda_in->sqlvar+entry;
     e.type=type;
     e.length=size;
@@ -1006,7 +1016,7 @@ char *value;
 **
 ** what we ought to be doing is detect inserts with values clauses and 
 ** placeholders in the parser and query system tables, not very efficient
-** but then what can you do?
+** but then, what can you do?
 ** this in turns poses system tables locking problems - ideally we ought to
 ** switch to the uncommitted read package and then back, which means keeping
 ** track of isolation levels on a per connection basis.

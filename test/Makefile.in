@@ -370,6 +370,7 @@ GREP = @GREP@
 I4GLUI = @I4GLUI@
 I4GLVER = @I4GLVER@
 IFMXSO = @IFMXSO@
+IFMXTEST = @IFMXTEST@
 INFORMIXC = @INFORMIXC@
 INSTALL = @INSTALL@
 INSTALL_DATA = @INSTALL_DATA@
@@ -402,6 +403,7 @@ PATH_SEPARATOR = @PATH_SEPARATOR@
 RANLIB = @RANLIB@
 READLINE_DEFINE = @READLINE_DEFINE@
 READLINE_LIBRARY = @READLINE_LIBRARY@
+REGEXTEST = @REGEXTEST@
 REGEX_DEFINE = @REGEX_DEFINE@
 REGEX_LIBRARY = @REGEX_LIBRARY@
 REXEC_LIBRARY = @REXEC_LIBRARY@
@@ -490,9 +492,13 @@ top_srcdir = @top_srcdir@
 #
 dist_noinst_DATA = test_runner.sh \
 		   arith.out arith.sqsl format.out format.sqsl \
-		   control.out control.sqsl
+		   control.out control.sqsl simple.out simple.sqsl \
+		   aggregate.out aggregate.sqsl pattern.sqsl pattern.out \
+		   regex.out regex.sqsl ifmx.out ifmx.sqsl
 
-TESTS = arith.sqsl format.sqsl control.sqsl
+TESTS = arith.sqsl format.sqsl control.sqsl simple.sqsl aggregate.sqsl \
+        pattern.sqsl $(REGEXTEST) $(IFMXTEST)
+
 TEST_EXTENSIONS = .sqsl
 SQSL_LOG_COMPILER = ./test_runner.sh
 AM_SQSL_LOG_FLAGS = -x=cli$(EXEEXT)
