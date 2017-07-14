@@ -26,12 +26,10 @@
 /* FIXME default connection */
 /* FIXME connection private data */
 /* FIXME timestamps and decimal natively */
+/* FIXME sqsl does not yet do booleans */
 
 /* 1 accumulare opzioni in connect */
-/* 2 eliminare lcb_mkcmd */
 /* 3 settare opzioni in prepare */
-/* 4 accumulare args */
-/* 5 unire args in doexec */
 
 #include <errno.h>
 #include <string.h>
@@ -59,9 +57,6 @@
 #define ROWBUFINC 1024
 #define DOCBUFINC 1024*16
 
-#define CBQUOTECHAR '\"'
-#define CBQUOTE "\""
-
 char *cursory[]= {
     "INFER",
     "SELECT",
@@ -70,21 +65,6 @@ char *cursory[]= {
     "RETURNING",
     NULL
 };
-
-typedef struct cbconn 
-{
-    char *connection;
-    char *user;
-    char *passwd;
-    lcb_t instance;
-} cbconn_t;
-
-typedef struct sqslda
-{
-    int colname;	/* offset into parse buffer for name */
-    int sqldata;	/* ditto for data string */
-    int sqllen;
-} sqslda_t;
 
 typedef struct {
     int data;		/* offset into buffer */
@@ -97,10 +77,26 @@ typedef struct {
     int bufmax;
 } storage_t;
 
+typedef struct cbconn 
+{
+    char *connection;
+    char *user;
+    char *passwd;
+    storage_t write_options;
+    storage_t read_options;
+    lcb_t instance;
+} cbconn_t;
+
+typedef struct sqslda
+{
+    int colname;	/* offset into parse buffer for name */
+    int sqldata;	/* ditto for data string */
+    int sqllen;
+} sqslda_t;
+
 typedef struct fgw_cbstmt
 {
-    lcb_CMDN1QL command;
-    lcb_N1QLPARAMS *params;
+    lcb_CMDN1QL command;	/* cb command structure */
     int phcount;
     int mutations;
     enum { RUNNING, PAUSING, COMPLETE } runstate;
@@ -112,6 +108,7 @@ typedef struct fgw_cbstmt
     int processed_length;	/* buffer already processed */
     storage_t docbuf;		/* placeholder for data */
     storage_t inbuf;		/* conversion space for placeholders */
+    storage_t stmttext;		/* the actual statement */
     sqslda_t *sqslda;
     exprstack_t *exprlist;	/* stack containing one row of data */
     int colcount;
@@ -141,6 +138,67 @@ static void sqd_zeroca(ca_t *ca)
 }
 
 /*
+** buffer management for incoming document and placeholders
+*/
+static int sqd_pushstring(storage_t *store, const char *data, int len, int term, int escape)
+{
+    int size;
+
+    /* just an offset for now */
+    int retval=store->buflen;
+
+    if (len<0)
+	len=strlen(data);
+    if (len==0)
+	return retval;
+    if (store->buflen+len+1>store->bufmax)
+    {
+	char *newbuf;
+
+	size=(len+1>DOCBUFINC)? len+1: DOCBUFINC;
+	newbuf=realloc(store->buf, store->bufmax+size);
+
+	if (newbuf==NULL)
+	    return -1;
+	store->buf=newbuf;
+	store->bufmax+=size;
+    }
+    if (escape)
+    {
+	int l;
+	char *d;
+	const char *s;
+
+	for (l=len, s=data, d=store->buf+store->buflen;
+	     l; l--)
+	{
+	     if (*s=='\"')
+	     {
+		len++;
+		size++;
+		if (store->buflen+len+1>store->bufmax)
+		{
+		    char *newbuf=realloc(store->buf, store->bufmax+size);
+
+		    if (newbuf==NULL)
+		        return -1;
+		    store->buf=newbuf;
+		    store->bufmax+=size;
+		}
+		*d++='\\';
+	     }
+	     *d++=*s++;
+	}
+    }
+    else
+	memcpy(store->buf+store->buflen, data, len);
+    store->buflen+=len;
+    if (term)
+	store->buf[store->buflen++]='\0';
+    return retval;
+}
+
+/*
 **  connect to an engine
 */
 DLLDECL void sqd_connect(char *host, char *as, char *user, char *passwd, char *opt,
@@ -160,14 +218,6 @@ DLLDECL void sqd_connect(char *host, char *as, char *user, char *passwd, char *o
 	return;
     }
 
-    /* no options for now */
-    if (opt)
-	for (; *opt; opt++)
-	    if (*opt != ' ')
-	    {
-		ca->sqlcode=RC_NIMPL;
-		return;
-	    }
     if ((cbconn=(cbconn_t *)malloc(sizeof(cbconn_t)))==NULL)
         goto bad;
     memset(cbconn, 0, sizeof(cbconn_t));
@@ -182,12 +232,14 @@ DLLDECL void sqd_connect(char *host, char *as, char *user, char *passwd, char *o
 	if ((cbconn->user=(char *)malloc(strlen(user)+1))==NULL)
 	    goto bad;
 	strcpy(cbconn->user, user);
+	crst.v.v3.username=cbconn->user;
     }
     if (passwd)
     {
 	if ((cbconn->passwd=(char *)malloc(strlen(passwd)+1))==NULL)
 	    goto bad;
 	strcpy(cbconn->passwd, passwd);
+	crst.v.v3.passwd=cbconn->passwd;
     }
     crst.version=3;
     crst.v.v3.connstr=h;
@@ -197,6 +249,18 @@ DLLDECL void sqd_connect(char *host, char *as, char *user, char *passwd, char *o
 	lcb_wait(cbconn->instance);
 	ca->sqlcode=lcb_get_bootstrap_status(cbconn->instance);
     }
+
+    /* no options for now */
+    if (opt)
+	for (; *opt; opt++)
+	    if (*opt != ' ')
+	    {
+		ca->sqlcode=RC_NIMPL;
+		return;
+	    }
+     if (sqd_pushstring(&cbconn->read_options,
+			"\"scan_consistency\":\"statement_plus\"", -1, 0, 0)<0)
+	goto bad;
 
     *private=(char *) cbconn;
     return;
@@ -236,73 +300,14 @@ DLLDECL void sqd_disconnect(char *host, char *name, ca_t *ca, char *private)
 	    free(cbconn->user);
 	if (cbconn->passwd)
 	    free(cbconn->passwd);
+	if (cbconn->read_options.buf)
+	    free(cbconn->read_options.buf);
+	if (cbconn->write_options.buf)
+	    free(cbconn->write_options.buf);
 	free(cbconn);
     }
     else
 	ca->sqlcode=EINVAL;
-}
-
-/*
-** buffer management for incoming document and placeholders
-*/
-static int sqd_pushstring(storage_t *store, const char *data, int len, int term, int escape)
-{
-    int size;
-
-    /* just an offset for now */
-    int retval=store->buflen;
-
-    if (len<0)
-	len=strlen(data);
-    if (len==0)
-	return retval;
-    if (store->buflen+len+1>store->bufmax)
-    {
-	char *newbuf;
-
-	size=(len+1>DOCBUFINC)? len+1: DOCBUFINC;
-	newbuf=realloc(store->buf, store->bufmax+size);
-
-	/* FIXME we fail silently */
-	if (newbuf==NULL)
-	    return retval;
-	store->buf=newbuf;
-	store->bufmax+=size;
-    }
-    if (escape)
-    {
-	int l;
-	char *d;
-	const char *s;
-
-	for (l=len, s=data, d=store->buf+store->buflen;
-	     l; l--)
-	{
-	     if (*s==CBQUOTECHAR)
-	     {
-		len++;
-		size++;
-		if (store->buflen+len+1>store->bufmax)
-		{
-		    char *newbuf=realloc(store->buf, store->bufmax+size);
-
-		    /* FIXME we fail silently */
-		    if (newbuf==NULL)
-		        return retval;
-		    store->buf=newbuf;
-		    store->bufmax+=size;
-		}
-		*d++='\\';
-	     }
-	     *d++=*s++;
-	}
-    }
-    else
-	memcpy(store->buf+store->buflen, data, len);
-    store->buflen+=len;
-    if (term)
-	store->buf[store->buflen++]='\0';
-    return retval;
 }
 
 /*
@@ -343,9 +348,10 @@ static void sqd_callback(lcb_t instance, int cbtype, const lcb_RESPN1QL *resp)
     if (resp->rflags & LCB_RESP_F_FINAL)
     {
 	st->ca->sqlcode=resp->rc;
-	st_p->meta.data=sqd_pushstring(&st_p->docbuf, resp->row, resp->nrow, 1, 0);
-	st_p->meta.len=resp->nrow;
 	st_p->runstate=COMPLETE;
+	if ((st_p->meta.data=sqd_pushstring(&st_p->docbuf, resp->row, resp->nrow, 1, 0))<0)
+	    goto oopsie;
+	st_p->meta.len=resp->nrow;
 	return;
     }
     if (st_p->doccount==st_p->maxdocs)
@@ -354,16 +360,14 @@ static void sqd_callback(lcb_t instance, int cbtype, const lcb_RESPN1QL *resp)
 		sizeof(lenstring_t)*(st_p->maxdocs+ROWBUFINC));
 
 	if (newrows==NULL)
-	{
-	    st->ca->sqlcode=RC_NOMEM;
 	    goto oopsie;
-	}
 	st_p->docs=newrows;
 	st_p->maxdocs+=ROWBUFINC;
     }
     st->ca->sqlcode=0;
-    st_p->docs[st_p->doccount].data=sqd_pushstring(&st_p->docbuf, resp->row,
-						   resp->nrow, 1, 0);
+    if ((st_p->docs[st_p->doccount].data=sqd_pushstring(&st_p->docbuf, resp->row,
+						   resp->nrow, 1, 0))<0)
+	goto oopsie;
     st_p->docs[st_p->doccount++].len=resp->nrow;
 
     /* for cursory statements, try to pause every so often */
@@ -375,6 +379,8 @@ static void sqd_callback(lcb_t instance, int cbtype, const lcb_RESPN1QL *resp)
     return;
 
 oopsie:
+    st->ca->sqlcode=RC_NOMEM;
+
     /* hara kiri, you've seen right! */
     lcb_n1ql_cancel(NULL, (lcb_N1QLHANDLE) st_p->command.handle);
 }
@@ -385,17 +391,10 @@ oopsie:
 DLLDECL fgw_cbstmttype *sqd_newstatement()
 {
     fgw_cbstmttype *st;
-    int i;
 
     if ((st=(fgw_cbstmttype *) malloc(sizeof(fgw_cbstmttype)))!=NULL)
+    {
 	memset(st, 0, sizeof(fgw_cbstmttype));
-    if ((st->params=lcb_n1p_new())==NULL)
-    {
-	free(st);
-	st=NULL;
-    }
-    else
-    {
 	st->command.callback=sqd_callback;
     }
     return st;
@@ -412,12 +411,8 @@ DLLDECL void sqd_freestatement(fgw_stmttype *st, int clean)
 
     if (st && (st_p=(fgw_cbstmttype *) st->sqlstmt))
     {
-	/* FIXME for prepared statements there should be a function
-	   to get this out of the SDK cache and out of
-	   system:prepareds
-	 */
-	if (st_p->params)
-	    lcb_n1p_free(st_p->params);
+	if (st_p->stmttext.buf)
+	    free(st_p->stmttext.buf);
 	if (st_p->inbuf.buf)
 	    free(st_p->inbuf.buf);
 	if (st_p->sqslda)
@@ -478,8 +473,8 @@ static void sqd_describe(fgw_stmttype *st)
 DLLDECL void sqd_prepare(fgw_stmttype *st, char *query)
 {
     struct fgw_cbstmt *st_p;
-    char **cur_cursory;
-    char *qtext, *qbuff=NULL;
+    cbconn_t *cbconn=(cbconn_t *) st->con->private_area;
+    char *nono, **cur_cursory;
     int declared=0;
     int rc;
 
@@ -494,60 +489,66 @@ DLLDECL void sqd_prepare(fgw_stmttype *st, char *query)
 	}
 	if (st->ca->sqlcode)
 	    return;
+
+/*
+** determine if this thing returns values
+*/
+	for (cur_cursory=cursory; *cur_cursory; cur_cursory++)
+	    if (XSL_CALL(fgw_strcasestr)(query, *cur_cursory))
+		declared=1;
+	if (declared)
+	    st->curstate=ST_DECLARED;
+/*
+** just an executable statement with placeholders
+*/
+	else
+	    st->curstate=ST_EXECUTABLE;
+/*
+** we don't use an lcb_N1QLPARAMS structure and lcb_n1p_mkcmd () to assemble
+** the command, but rather we assemble it by hand: it's marginally faster and
+** uses less memory.
+** here we prepare the statement and REST options ready to be appended to the
+** REST API text
+*/
+	/* push options if any */
+	if (declared && cbconn->read_options.buf && 
+	    (sqd_pushstring(&st_p->stmttext,
+		cbconn->read_options.buf, cbconn->read_options.buflen, 0, 0)<0 ||
+	     sqd_pushstring(&st_p->stmttext, ",", 1, 0, 0)<0))
+	{
+	    st->ca->sqlcode=RC_NOMEM;
+	    return;
+	}
+	/* push options if any */
+	if (!declared && cbconn->write_options.buf && 
+	    (sqd_pushstring(&st_p->stmttext,
+		cbconn->write_options.buf, cbconn->write_options.buflen, 0, 0)<0 ||
+	     sqd_pushstring(&st_p->stmttext, ",", 1, 0, 0)<0))
+	{
+	    st->ca->sqlcode=RC_NOMEM;
+	    return;
+	}
+
+	/* push statement after options */
+	if (sqd_pushstring(&st_p->stmttext, "\"statement\":\"", -1, 0, 0)<0 ||
+	    sqd_pushstring(&st_p->stmttext, query, -1, 0, 1)<0 ||
+	    sqd_pushstring(&st_p->stmttext, "\"}", 2, 1, 0)<0)
+	{
+	    st->ca->sqlcode=RC_NOMEM;
+	    return;
+	}
 /*
 ** cb doesn't like certain chars so if we find any, we just get
 ** them out of the way
 ** FIXME: this fixes string constants too, while it probably ought to
 ** return an error
 */
-	if (strpbrk(query, NONOCHARS))
-	{
-	    char *s, *d;
+	nono=st_p->stmttext.buf;
+	while ((nono=strpbrk(nono, NONOCHARS)))
+		*nono=' ';
 
-	    if (!qbuff)
-	    {
-		if (!(qbuff=(char *) malloc(strlen(query)+1)))
-		{
-		    st->ca->sqlcode=RC_NOMEM;
-		    return;
-		}
-		qtext=qbuff;
-	    }
-	    for (s=query, d=qtext; *s; s++, d++)
-	    {
-		if (strchr(NONOCHARS, *s))
-		    *d=' ';
-		else
-		    *d=*s;
-	    }
-	    *d='\0';
-	}
-	else
-	    qtext=query;
-
-/*
-** determine if this thing returns values
-*/
-	for (cur_cursory=cursory; *cur_cursory; cur_cursory++)
-	    if (XSL_CALL(fgw_strcasestr)(qtext, *cur_cursory))
-		declared=1;
-	if (declared)
-	{
-	    st->curstate=ST_DECLARED;
-	}
-/*
-** just an executable statement with placeholders
-*/
-	else
-	{
-	    st->curstate=ST_EXECUTABLE;
-	}
-    if (st->options & (SO_REALPREPARED | SO_INSCURS))
-	st_p->command.cmdflags|=LCB_CMDN1QL_F_PREPCACHE;
-    lcb_n1p_setconsistency(st_p->params, LCB_N1P_CONSISTENCY_STATEMENT);
-    st->ca->sqlcode=lcb_n1p_setstmtz(st_p->params, qtext);
-    if (qbuff)
-	free(qbuff);
+	if (st->options & (SO_REALPREPARED | SO_INSCURS))
+	    st_p->command.cmdflags|=LCB_CMDN1QL_F_PREPCACHE;
     }
     else if (st)
 	st->ca->sqlcode=RC_INSID;
@@ -566,6 +567,10 @@ DLLDECL void sqd_allocateda(fgw_stmttype *st, int entries)
     {
 	st_p->inbuf.buflen=0;
 	st_p->phcount=entries;
+
+	/* REST API text opener - we use application/json */
+	if (sqd_pushstring(&st_p->inbuf, "{", 1, 0, 0)<0)
+	    st->ca->sqlcode=RC_NOMEM;
     }
 }
 
@@ -576,53 +581,75 @@ DLLDECL void sqd_bindda(fgw_stmttype *st, int entry, int type, int size, char *v
 {
     fgw_cbstmttype *st_p=(fgw_cbstmttype *) st->sqlstmt;
     exprstack_t e;
-    int ind;
-    long offs;
+    int ind, rc;
     char cnvbuf[CNVSTRSIZE];
     char *val=NULL;
 
     if (st_p==NULL || entry<0 || entry>=st_p->phcount)
 	return;
+    
+    /* for the first parameter, we need the args field and array opener */
+    if (entry==0)
+	rc=sqd_pushstring(&st_p->inbuf, "\"args\":[", -1, 0, 0);
+
+    /* all other fields are comma separated */
+    else
+	rc=sqd_pushstring(&st_p->inbuf, ",", 1, 0, 0);
+    if (rc<0)
+	goto oopsie;
+
     e.type=type;
     e.length=size;
-
-    /* we need to bind over and over again */
-    st->options|=SO_BUFCNV;
     switch (type)
     {
+      case CDATETYPE:
       case CINTTYPE:
 	e.val.intvalue=*(int *) value;
 	break;
       case CDOUBLETYPE:
 	e.val.real=*(double *) value;
 	break;
-/*
-** timestamps and decimals handled here
-** datetimes need to be either year to second/fraction or hour to second
-*/
       default:
-	if (type==CSTRINGTYPE && *value=='{')
-	{
-	    offs=(long) sqd_pushstring(&st_p->inbuf, value, -1, 1, 0);
-	    val=offs+st_p->inbuf.buf;
-	    break;
-	}
-
 	e.val.string=value;
-	offs=(long) sqd_pushstring(&st_p->inbuf, CBQUOTE, 1, 0, 0);
-	IGNORE sqd_pushstring(&st_p->inbuf, XSL_CALL(rxu_tostring)(&e, (char *) &cnvbuf, &ind), -1, 0, 1);
-	IGNORE sqd_pushstring(&st_p->inbuf, CBQUOTE, 1, 1, 0);
-	val=offs+st_p->inbuf.buf;
-	break;
     }
-    if (val==NULL)
-	val=XSL_CALL(rxu_tostring)(&e, (char *) &cnvbuf, &ind);
+   val=XSL_CALL(rxu_tostring)(&e, (char *) &cnvbuf, &ind);
+    
+    /* we need to bind over and over again */
+    st->options|=SO_BUFCNV;
 
-    /* FIXME do something if null */
+    /* handle nulls */
     if (ind)
     {
+	if (sqd_pushstring(&st_p->inbuf, "null", 4, 0, 0)<0)
+	    goto oopsie;
     }
-    st->ca->sqlcode=lcb_n1p_posparam(st_p->params, val, strlen(val));
+
+    /* hack alert: don't quote objects! */
+    else if (type==CSTRINGTYPE && *value=='{')
+    {
+	if (sqd_pushstring(&st_p->inbuf, val, -1, 0, 0)<0)
+	    goto oopsie;
+    }
+
+    else
+	switch (type)
+	{
+	  case CDATETYPE:
+	  case CINTTYPE:
+	  case CDOUBLETYPE:
+	    if (sqd_pushstring(&st_p->inbuf, val, -1, 0, 0)<0)
+		goto oopsie;
+	    break;
+	  default:
+	    if (sqd_pushstring(&st_p->inbuf, "\"", 1, 0, 0)<0 ||
+	        sqd_pushstring(&st_p->inbuf, val, -1, 0, 1)<0 ||
+	        sqd_pushstring(&st_p->inbuf, "\"", 1, 0, 0)<0)
+		goto oopsie;
+	}
+    return;
+
+oopsie:
+    st->ca->sqlcode=RC_NOMEM;
 }
 
 /*
@@ -633,19 +660,23 @@ static void sqd_doexec(fgw_stmttype *st, fgw_cbstmttype *st_p, cbconn_t *cbconn)
     /* prone to race conditions, but... */
     handle=(lcb_N1QLHANDLE) st_p->command.handle;
     st_p->runstate=RUNNING;
-    if ((st->ca->sqlcode=lcb_n1p_mkcmd(st_p->params, &st_p->command)==0 &&
-	(st->ca->sqlcode=lcb_n1ql_query(cbconn->instance, st, &st_p->command)==0)))
 
-	/* FIXME ideally there should be a lcb_fetch, so that we could
- 	   get one document at a time rather than having all in memory
-	 */
+    /* populate the command structure */
+    if ((st_p->phcount>0 && sqd_pushstring(&st_p->inbuf, "],", 2, 0, 0)<0) ||
+        sqd_pushstring(&st_p->inbuf, st_p->stmttext.buf, st_p->stmttext.buflen-1, 0, 0)<0)
+    {
+	st->ca->sqlcode=RC_NOMEM;
+	return;
+    }
+    st_p->command.query=st_p->inbuf.buf;
+    st_p->command.nquery=st_p->inbuf.buflen;
+    st_p->command.content_type="application/json";
+
+    if ((st->ca->sqlcode=lcb_n1ql_query(cbconn->instance, st, &st_p->command))==0)
 	lcb_wait(cbconn->instance);
     handle=NULL;
-
-    /* now that we are done, zap the positional parameters */
-    /* FIXME there should be a function to do this */
-    /* FIXME ideally this should go sqd_bindda / sqd_freestatement */
-    lcb_n1p_setopt(st_p->params, "args", 4, "[]", 2);
+    st_p->command.query=NULL;
+    st_p->command.content_type="NULL";
 }
 
 /*
@@ -725,6 +756,7 @@ DLLDECL void sqd_nextrow(fgw_stmttype *st)
 
     if (st_p->curdoc>=st_p->doccount)
     {
+/* FIXME handle meta and missing meta */
 	st->ca->sqlcode=RC_NOTFOUND;
 	return;
     }
@@ -739,6 +771,8 @@ DLLDECL void sqd_nextrow(fgw_stmttype *st)
     /* FIXME fill sqslda properly! */
     if (!st_p->sqslda)
 	st_p->sqslda=(sqslda_t *) malloc(sizeof(sqslda_t));
+
+    /* FIXME handle rows with no data / lack of memory */
     st_p->sqslda->sqldata=st_p->docs[st_p->curdoc].data;
     st_p->sqslda->sqllen=st_p->docs[st_p->curdoc].len;
     st_p->sqslda->colname=sqd_pushstring(&st_p->docbuf, "json", 4, 1, 0);
