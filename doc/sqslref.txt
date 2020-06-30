@@ -47,7 +47,7 @@ Connection related statements
   SET CONNECTION [ DEFAULT [ SOURCE <source_name> ] | <expression> ];
 
 Sources are implemented as shared objects. Currently there are two sources for
-Informix engines, three for DB2 and one for SolidDB.
+Informix engines, three for DB2 and one each for Couchbase and SolidDB.
 The interpreter sports the concept of 'current source', which is the source
 selected by the latest CONNECT statement explicitely naming a source. Further
 CONNECT statements not specifically selecting a source will use the current
