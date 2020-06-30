@@ -3,10 +3,10 @@
 
 	The 4glWorks application framework
 	The Structured Query Scripting Language
-	Copyright (C) 1992-2017 Marco Greco (marco@4glworks.com)
+	Copyright (C) 1992-2020 Marco Greco (marco@4glworks.com)
 
 	Initial release: Oct 92
-	Current release: Jan 17
+	Current release: Jun 20
 
 	This library is free software; you can redistribute it and/or
 	modify it under the terms of the GNU Lesser General Public
@@ -1120,7 +1120,7 @@ int nargs;
     }
     r=fgw_fdclose(fd_p);
     if (errno)
-	rsetnull(CINTTYPE, &r);
+	rsetnull(CINTTYPE, (char *) &r);
     retint(r);
     return(1);
 }

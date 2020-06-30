@@ -3,10 +3,10 @@
 
 	The 4glWorks application framework
 	The Structured Query Scripting Language
-	Copyright (C) 1992-2016 Marco Greco (marco@4glworks.com)
+	Copyright (C) 1992-2020 Marco Greco (marco@4glworks.com)
 
 	Initial release: Jan 97
-	Current release: Sep 16
+	Current release: Jun 20
 
 	This library is free software; you can redistribute it and/or
 	modify it under the terms of the GNU Lesser General Public
@@ -87,6 +87,7 @@ typedef struct fgw_source
     void (*sqd_break)();
     void (*sqd_describecol)();
     void (*sqd_autocommit)();
+    int (*sqd_error)();
 } fgw_sourcetype;
 
 #define SO_SRCFLG 0x1
@@ -139,6 +140,7 @@ typedef struct fgw_stmt
     fgw_tsstype *usinghead;	/* TSS for using expressions */
     fgw_loc_t *vars;		/* storage space */
     ca_t *ca;			/* sqlca info */
+    char *sqltxt;		/* for those sources that can't return error strings asynchronously */
     ca_t *oserr;		/* for file system failures */
     fgw_conntype *con;		/* connection identifier */
     fgw_sourcetype *source;	/* source identifier */
@@ -186,6 +188,9 @@ typedef struct fgw_stmt
 #define SO_DONEFMT		0x00001000	/* format states */
 #define SO_NOFMT		0x00002000
 #define SO_TABULAR		0x00004000
+
+#define SO_LATE_DESCRIBE	0x00008000	/* describe is only available after fetching a row */
+#define SO_PRIMED		0x00010000	/* cursor opened, describe available, skip fetching row */
 
 #define SO_ALLOCD		0x10000000	/* placehoders allocated */
 #define SO_BOUND		0x20000000	/* placeholders bound */

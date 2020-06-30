@@ -1,10 +1,10 @@
 #	MAKEFILE.am - couchbase source automake defs
 #
 #	The Structured Query Scripting Language
-#	Copyright (C) 1992-2017 Marco Greco (marco@4glworks.com)
+#	Copyright (C) 1992-2019 Marco Greco (marco@4glworks.com)
 #
 #	Initial release: Jun 16
-#	Current release: Jan 17
+#	Current release: Mar 19
 #
 #	This library is free software; you can redistribute it and/or
 #	modify it under the terms of the GNU Lesser General Public
@@ -40,7 +40,7 @@ COMPILE = $(CC) $(CC_RELOC) $(CC_SRC_EXTRA) $(DNT) -DFGWSOURCE \
 
 
 nodist_sqsl_SCRIPTS = fgwcb$(DLLEXT)
-dist_noinst_DATA = cb.c
+dist_noinst_DATA = cb.c cb.h decode.c
 
 # FIXME - work out dependencies
 .c.o:
@@ -48,8 +48,8 @@ dist_noinst_DATA = cb.c
 
 #rats! only gmake supports $^
 #order is important!
-fgwcb$(DLLEXT): cb.o $(CBEXTRA)
-	$(LINKCMD) $(LD_SRC_EXTRA) -L $(CBLIBDIR) -lcouchbase -o $@ cb.o $(CBEXTRA)
+fgwcb$(DLLEXT): cb.o decode.o $(CBEXTRA)
+	$(LINKCMD) $(LD_SRC_EXTRA) -L $(CBLIBDIR) -lcouchbase -o $@ cb.o decode.o $(CBEXTRA)
 
 clean-local:
 	rm -f *$(DLLEXT) *.o

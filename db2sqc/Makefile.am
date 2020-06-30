@@ -31,7 +31,7 @@
 #
 COMPILE = $(CC) $(CC_RELOC) $(CC_SRC_EXTRA) $(DNEED_XSL) $(DNT) $(SQC_CC_EXTRA) \
 	  -I$(top_srcdir)/sqsl -I$(top_srcdir)/oslib \
-	  -I"$(SQLLIBDIR)/include" $(DB2IFMXINCL)
+	  -I"$(SQLLIBDIR)/include" -DFGWSOURCE
 sqsldir = $(bindir)
 
 nodist_sqsl_DATA = fgwdb2.bnd

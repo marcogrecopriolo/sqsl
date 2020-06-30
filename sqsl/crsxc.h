@@ -60,6 +60,7 @@ extern int rsx_exit();
 extern void rsx_dispose();
 extern void rsx_display(pcode_t *fmt);
 extern void rsx_errorlog();
+extern void rsx_width();
 extern void rsx_evalexpr();	/* most expression related plain statements */
 extern void rsx_flagset(int f);
 extern void rsx_flagreset(int f);

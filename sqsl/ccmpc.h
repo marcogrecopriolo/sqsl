@@ -3,10 +3,10 @@
 
 	The 4glWorks application framework
 	The Structured Query Scripting Language
-	Copyright (C) 1992-2012 Marco Greco (marco@4glworks.com)
+	Copyright (C) 1992-2020 Marco Greco (marco@4glworks.com)
 
 	Initial release: Oct 02
-	Current release: Jan 12
+	Current release: Jun 20
 
 	This library is free software; you can redistribute it and/or
 	modify it under the terms of the GNU Lesser General Public
@@ -102,6 +102,12 @@ extern int int_flag;
 #endif /* A4GL */
 
 #include "ctypc.h"
+
+#ifdef A4GL
+void fgw_copylocator(fgw_loc_t *loc, fglbyte **byte);
+void fgw_restorelocator(fgw_loc_t *loc, fglbyte *blob);
+#endif /* A4GL */
+
 #ifdef __STDC__
 #define IGNORE (void)
 #else

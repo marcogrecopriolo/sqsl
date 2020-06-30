@@ -697,6 +697,10 @@ void fgw_errmsg(int e, errorinfo_t *ei, char *b, int l)
             strncat(b, ei->extra, l-strlen(b));
         }
     }
+
+    /* for those sources that might return error strings with the result packet */
+    else if (ei->extra[0])
+	rqx_errtxt(s, e, ei->extra, b, l);
     else
 	rqx_errmsg(s, e, b, l);
 /*

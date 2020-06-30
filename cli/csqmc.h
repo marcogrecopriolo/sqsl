@@ -2,10 +2,10 @@
 	CSQMC.h  -  sqsl interpreter messages, eng
 
 	The Structured Query Scripting Language
-	Copyright (C) 1992-2016 Marco Greco (marco@4glworks.com)
+	Copyright (C) 1992-2020 Marco Greco (marco@4glworks.com)
 
 	Initial release: Mar 03
-	Current release: Jul 16
+	Current release: Jun 20
 
 	This library is free software; you can redistribute it and/or
 	modify it under the terms of the GNU Lesser General Public
@@ -67,6 +67,7 @@
 504, "Function returned unexpected number of values", NULL, 
 505, "You are not allowed to use fork", NULL,
 506, "Invalid regular expression", NULL,
+507, "Source does not support describe in prepare statements", NULL,
 600, "Invalid connection identifier", NULL, 
 601, "Duplicate connection identifier", NULL, 
 602, "No such shared library, or not a valid source", NULL, 

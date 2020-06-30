@@ -102,6 +102,7 @@
 #define RC_WRCNT	0xfe0001f8	/* # of parms returned != expected */
 #define RC_NOFRK	0xfe0001f9	/* you are not allowed to fork */
 #define RC_RESYN	0xfe0001fa	/* invalid regular expression */
+#define RC_FNIPS	0xfe0001fb	/* source cannot support this function in prepared statements */
 
 /*
 ** dynamic sql errors

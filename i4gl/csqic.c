@@ -3,10 +3,10 @@
 
 	The 4glWorks application framework
 	The Structured Query Scripting Language
-	Copyright (C) 1992-2016 Marco Greco (marco@4glworks.com)
+	Copyright (C) 1992-2020 Marco Greco (marco@4glworks.com)
 
 	Initial release: Mar 00
-	Current release: Sep 16
+	Current release: Jun 20
 
 	This library is free software; you can redistribute it and/or
 	modify it under the terms of the GNU Lesser General Public
@@ -27,6 +27,7 @@
 
 #include "ccmpc.h"
 #include "ccmnc.h"
+#include "cexpc.h"
 #include "csqpc.h"
 #include "csqrc.h"
 #include "ctypc.h"
@@ -65,7 +66,7 @@ int FGLGLOB(sql_execute)(int nargs)
 	/* traditionally, the error code is null if the script is 
 	   succesfull and has produced output */
 	if (r==0 && execinfo.verbose)
-	    rsetnull(CINTTYPE, &r);
+	    rsetnull(CINTTYPE, (char *) &r);
 	retint(r);
 	free(i_query);
 	RESTORELOCATOR(txtvar)
@@ -114,7 +115,7 @@ int FGLGLOB(sql_execute2)(int nargs)
     /* traditionally, the error code is null if the script is 
        succesfull and has produced output */
     if (r==0 && execinfo.verbose)
-	rsetnull(CINTTYPE, &r);
+	rsetnull(CINTTYPE, (char *) &r);
     retint(r);
     RESTORELOCATOR(txtvar)
     RESTORELOCATOR(vars)

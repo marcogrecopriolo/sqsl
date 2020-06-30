@@ -128,6 +128,20 @@ int fgw_strcasecmp(char *s1, char *s2)
 	    return d;
     }
 }
+/*
+** case insensitive string comparison
+*/
+int fgw_strncasecmp(char *s1, char *s2, int l)
+{
+    for (;; fgw_chrnext(s1), fgw_chrnext(s2))
+    {
+	int d=fgw_tolower(*s1)-fgw_tolower(*s2);
+	if (d || !*s1)
+	    return d;
+	if (--l==0)
+	    return l;
+    }
+}
 
 /*
 ** case insensitive string search
@@ -147,6 +161,7 @@ char *fgw_strcasestr(char *s1, char *s2)
 	if (!*n)
 	    return s1;
     }
+    return NULL;
 }
 
 #if defined (I4GLVER) || defined(A4GL)

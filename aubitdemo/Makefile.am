@@ -1,10 +1,10 @@
 #	MAKEFILE.am - Aubit 4gl curses interface demo automake defs
 #
 #	The Structured Query Scripting Language
-#	Copyright (C) 1992-2017 Marco Greco (marco@4glworks.com)
+#	Copyright (C) 1992-2020 Marco Greco (marco@4glworks.com)
 #
 #	Initial release: Feb 05
-#	Current release: Jan 17
+#	Current release: Jun 20
 #
 #	This library is free software; you can redistribute it and/or
 #	modify it under the terms of the GNU Lesser General Public
@@ -26,7 +26,7 @@
 EXEEXT = $(AUBEXT)
 
 INCLUDES = -I$(top_srcdir)/aubit4gl -I$(top_srcdir)/oslib
-COMPILE = INFORMIXC="$(INFORMIXC) $(CC_EXTRA)"; A4GL_SQLTYPE=$(A4GL_SQLTYPE); \
+COMPILE = INFORMIXC="$(INFORMIXC) $(CC_EXTRA) $(ESQLDEFS)"; A4GL_SQLTYPE=$(A4GL_SQLTYPE); \
 	  A4GL_LEXTYPE=$(A4GL_LEXTYPE); A4GL_LEXDIALECT=$(A4GL_LEXDIALECT); \
 	  A4GL_EC_COMP="$(A4GL_EC_COMP)"; A4GL_C_COMP="$(A4GL_EC_COMP)"; \
 	  FGLPCSETTINGSDIR="$(A4GL_SETTINGSDIR)"; \

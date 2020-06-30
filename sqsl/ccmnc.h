@@ -178,6 +178,7 @@ extern void fgw_escmove(void *d, void *s, int c, char e);
 #define fgw_islower		islower
 #define fgw_isalpha		isalpha
 extern int fgw_strcasecmp(char *s1, char *s2);
+extern int fgw_strncasecmp(char *s1, char *s2, int l);
 extern char *fgw_strcasestr(char *s1, char *s2);
 
 /* these are returned via status, errno returns OS Exxxx errors */

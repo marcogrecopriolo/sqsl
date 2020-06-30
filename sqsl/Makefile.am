@@ -1,10 +1,10 @@
 #	MAKEFILE.am - Esql/c SQSL library automake defs
 #
 #	The Structured Query Scripting Language
-#	Copyright (C) 1992-2017 Marco Greco (marco@4glworks.com)
+#	Copyright (C) 1992-2020 Marco Greco (marco@4glworks.com)
 #
 #	Initial release: Feb 05
-#	Current release: Jan 17
+#	Current release: Jun 20
 #
 #	This library is free software; you can redistribute it and/or
 #	modify it under the terms of the GNU Lesser General Public
@@ -22,7 +22,7 @@
 
 # sqsllib uses relocatable code just in case we want to link it in a DLL
 COMPILE = $(INFORMIXC) $(CC_RELOC) $(CC_EXTRA) -I$(ESQLINC) -I$(top_srcdir)/oslib \
-	  $(DNEED_XSL) $(DNT) $(REGEX_DEFINE)
+	  $(DNEED_XSL) $(DNT) $(REGEX_DEFINE) -DESQLVER=$(ESQLVER)
 lib_LIBRARIES = libsqsl.a
 libsqsl_a_SOURCES = cascc.c cexpc.c chstc.c csqpc.c ccmnc.c cfioc.c \
                     cldec.c clddc.c cldpc.c crqfc.c crqxc.c crsxc.c \

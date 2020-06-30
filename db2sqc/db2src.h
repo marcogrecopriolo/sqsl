@@ -3,10 +3,10 @@
 
 	The 4glWorks application framework
 	The Structured Query Scripting Language
-	Copyright (C) 1992-2003 Marco Greco (marco@4glworks.com)
+	Copyright (C) 1992-2020 Marco Greco (marco@4glworks.com)
 
 	Initial release: Mar 03
-	Current release: Jul 03
+	Current release: Jun 20
 
 	This library is free software; you can redistribute it and/or
 	modify it under the terms of the GNU Lesser General Public
@@ -32,3 +32,5 @@
 #define FGW_CS 11
 #define FGW_RR 12
 #define FGW_RS 13
+
+int db2api_parser(char *buffer, int mode, int *sc);

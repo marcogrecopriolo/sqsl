@@ -27,6 +27,7 @@
 #include "coslc.h"
 #include "csqpc.h"
 #include "crqxd.h"
+#include "crqxp.h"
 #include "crxoc.h"
 #include "crxxd.h"
 

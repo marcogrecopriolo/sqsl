@@ -1,4 +1,5 @@
 autom4te.cache/
+distbin/
 tmp/
 .deps/
 *.log
@@ -16,6 +17,7 @@ Makefile
 aubitdemo/*.dat
 aubitdemo/*.hlp
 aubitdemo/*.4ae
+aubitdemo/*.warn
 i4gldemo/*.frm
 i4gldemo/*.hlp
 i4gldemo/*.4ge
@@ -23,4 +25,5 @@ cli/cli
 db2sqc/*.bnd
 test/*.res
 test/*.err
+test/*.trs
 test/cli

@@ -27,16 +27,21 @@
 #include "ccmnc.h"
 #include "cfnmc.h"
 #include "coslc.h"
+#include "cldpc.h"
+#include "crxcc.h"
+#include "crxvc.h"
 #include "csqhc.h"
 #include "csqpc.h"
 #include "csqrc.h"
 #include "crqfc.h"
 #include "crqxp.h"
 #include "crsxc.h"
+#include "crxxp.h"
 
 extern TGLOB parserstate_t *pstate;
 
 static int rsx_setformat(fgw_stmttype *st_p, pcode_t *fmt);
+static int rsx_primeformat(fgw_stmttype *st_p);
 static int rsx_conwhenever();
 static int rsx_whenever();
 static int rsx_doformat();
@@ -65,8 +70,7 @@ int rsx_sqlrun(char *stmt)
     if (rxx_runnable() && (status=rxx_execute(NULL, NULL)))
 	return -1;
 
-    rqx_run(stmt, pstate->ssp->stmt,
-            pstate->touch);
+    rqx_run(stmt, pstate->ssp->stmt, pstate->touch);
     status=pstate->ssp->stmt->ca->sqlcode;
     rqx_freestatement(pstate->ssp->stmt);
     pstate->ssp->stmt=NULL;
@@ -171,7 +175,7 @@ int rsx_foreach(pcode_t *fmt)
 	}
         else
         {
-            if (status=rsx_setformat(pstate->ssp->stmt, fmt))
+	    if ((status=rsx_primeformat(pstate->ssp->stmt)) || (status=rsx_setformat(pstate->ssp->stmt, fmt)))
 		goto bad;
             if (pstate->ssp->stmt->fmt_type!=FMT_NULL)
             {
@@ -1373,7 +1377,7 @@ int rsx_nonredirected(pcode_t *fmt)
     }
     else if (!r)
     {
-        if (!(r=rsx_setformat(pstate->ssp->stmt, fmt)))
+        if (!(r=rsx_primeformat(pstate->ssp->stmt)) && !(r=rsx_setformat(pstate->ssp->stmt, fmt)))
         {
             rqf_dorows(pstate->ssp->stmt, pstate->txtvar, 1);
             status=pstate->ssp->stmt->ca->sqlcode;
@@ -1812,6 +1816,22 @@ static int rsx_doformat()
 /*
 ** common code to set formats and headers
 */
+static int rsx_primeformat(fgw_stmttype *st_p)
+{
+    if (st_p==NULL)
+	return RC_INSID;
+    if (st_p->options & SO_LATE_DESCRIBE)
+    {
+	if (st_p->curstate<ST_DECLARED)
+	    return RC_INSID;
+	rqx_nextrow(st_p);
+	if (st_p->ca->sqlcode==0)
+	    st_p->options|=SO_PRIMED;
+	return st_p->ca->sqlcode;
+    }
+    return 0;
+}
+
 static int rsx_setformat(fgw_stmttype *st_p, pcode_t *fmt)
 {
     int i, c, rc;
@@ -1820,7 +1840,7 @@ static int rsx_setformat(fgw_stmttype *st_p, pcode_t *fmt)
 
     /* already been here */
     if (st_p->options & SO_DONEFMT)
-	return;
+	return 0;
 
     /* set defaults */
     rsx_doformat();

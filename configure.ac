@@ -1,10 +1,10 @@
 dnl	CONFIGURE.ac - Master autoconf defs
 dnl	
 dnl	The Structured Query Scripting Language
-dnl	Copyright (C) 1992-2017 Marco Greco (marco@4glworks.com)
+dnl	Copyright (C) 1992-2020 Marco Greco (marco@4glworks.com)
 dnl	
 dnl	Initial release: Feb 05
-dnl	Current release: Apr 17
+dnl	Current release: Jun 20
 dnl
 dnl	This library is free software; you can redistribute it and/or
 dnl	modify it under the terms of the GNU Lesser General Public
@@ -180,18 +180,19 @@ case "$OS" in
 # to top it off, not all compilers return non zero on invalid options
 # hence the stderr hack...
 #
-    echo "main(){}" > /tmp/dyn$$.c
+    echo "int main(){}" > /tmp/dyn$$.c
     if test -z "`$CC -rdynamic /tmp/dyn$$.c -o /tmp/dyn$$ 2>&1`"
     then
 	AC_SUBST(CC_LD_FLAG, "-rdynamic")
 	AC_SUBST(CC_SO_FLAG, "-shared")
 	AC_SUBST(CC_RELOC, "-fPIC")
 	cc_static="-static"
+	noimpl="-Wno-implicit-function-declaration"
     else
 	AC_SUBST(CC, "$CC $cc_xtra")
 	AC_SUBST(CC_RELOC, "$cc_reloc")
     fi
-    echo "main() { dlerrno(); }" > /tmp/dyn$$.c
+    echo "int main() { dlerrno(); }" > /tmp/dyn$$.c
     if test -z "`$CC -ldl /tmp/dyn$$.c -o /tmp/dyn$$ 2>&1`"
     then
 	AC_SUBST(CC_OSL_EXTRA, "-DHAVE_DLERRNO")
@@ -573,6 +574,7 @@ then
     fi
     AC_SUBST(IFMXTEST, ifmx.sqsl)
 else
+    AC_SUBST(ESQLDEFS, "-DESQLVER=$ESQLVER")
     case "$OS" in
       CYGWIN*)
 	AC_SUBST(ESQL, '${top_srcdir}/tools/esqlcyg -DESQLVER='"$ESQLVER")
@@ -744,7 +746,8 @@ dnl FIXME, need to check for (BINDADD and IMPLICIT_SCHEMA) or DBADM authority
 	    AC_SUBST(DB2LINK, '$(CC) $(CC_SO_FLAG) -L$(SQLLIBDIR)/lib -ldb2')
 	    ;;
 	esac
-	AC_SUBST(DB2IFMXINCL, "-I$ESQLINC")	#FIXME
+#	AC_SUBST(DB2IFMXINCL, "-I$ESQLINC")	#FIXME
+	AC_SUBST(DB2IFMXINCL, "-DFGWSOURCE")	#FIXME
 	AC_SUBST(DB2BUILDDB, sample)		#FIXME
     fi
 fi
@@ -800,7 +803,7 @@ cb=`find /usr/lib /usr/lib64 /usr/local/lib /usr/local/lib64 /usr/bin /usr/local
 echo 'int main(int argc, char **argv){int i=lcb_n1ql_query(); }' > /tmp/cb$$.c
 for l in $cb
 do
-    res=`$CC $l /tmp/cb$$.c -o /tmp/cb$$ 2>&1`
+    res=`$CC $noimpl $l /tmp/cb$$.c -o /tmp/cb$$ 2>&1`
     if test -z "$res"
     then
 	AC_SUBST(CBSO, cb)

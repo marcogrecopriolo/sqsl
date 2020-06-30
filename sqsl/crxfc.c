@@ -57,6 +57,8 @@ int rxf_displaylabels(fgw_stacktype *s)
 
     if (!pstate->curstmt || !pstate->curstmt->source)
 	return RC_CNUHR;
+    if ((pstate->curstmt->options & SO_LATE_DESCRIBE) && pstate->curstmt->curstate!=ST_OPENED)
+	return RC_FNIPS;
     memset(&o, 0, sizeof(o));
     memset(&d, 0, sizeof(d));
     if ((lc=rqx_counttokens(pstate->curstmt)))

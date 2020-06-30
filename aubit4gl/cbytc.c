@@ -33,9 +33,7 @@
 /*
 ** build locator from aubit blob
 */
-fgw_copylocator(loc, byte)
-fgw_loc_t *loc;
-fglbyte **byte;
+void fgw_copylocator(fgw_loc_t *loc, fglbyte **byte)
 {
     fglbyte blob;
     int s, t;
@@ -68,9 +66,7 @@ fglbyte **byte;
 /*
 ** restore aubit blob from locator
 */
-fgw_restorelocator(loc, blob)
-fgw_loc_t *loc;
-fglbyte *blob;
+void fgw_restorelocator(fgw_loc_t *loc, fglbyte *blob)
 {
     A4GL_assertion(blob==NULL, "blob locator not initialized");
     blob->where=(loc->loc_loctype==LOCMEMORY)? 'M': 'F';

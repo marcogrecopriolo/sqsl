@@ -1,10 +1,11 @@
-SQSL N1QL data source V0.1 release notes			Mar 31, 2017
+SQSL N1QL data source V0.9 release notes			Jul 13, 2019
 
-The couchbase N1QL data source is as alpha as it gets, in fact not even that.
-Proof of concept, really.
-There is enough code to select entire documents and support data loading
-from other database engines, but is missing authentication, options,
-final response handling and json parser.
+The couchbase N1QL data source is fairly stable, but probably not production
+ready.
+A couple of things might not work here and there because describing fields
+and collecting errors work unlike any relational database engine, due to the
+json in / json out nature of the product.
+I believe I have covered most things.
 
 Building hints
 As long the configure script can locate libcouchbase, the source should build
@@ -14,4 +15,6 @@ version on libcouchbase.
 This gets chosen automatially and there no action required on your part.
 
 Limitations
-...most things are not implemented!
+DML performance might not be great - this has more to do with N1QL
+than this source.
+Unicode sequences are not implemented.

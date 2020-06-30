@@ -3,10 +3,10 @@
 
 	The 4glWorks application framework
 	The Structured Query Scripting Language
-	Copyright (C) 1992-2017 Marco Greco (marco@4glworks.com)
+	Copyright (C) 1992-2020 Marco Greco (marco@4glworks.com)
 
 	Initial release: Jan 97
-	Current release: Jan 17
+	Current release: Jun 20
 
 	This library is free software; you can redistribute it and/or
 	modify it under the terms of the GNU Lesser General Public
@@ -597,8 +597,10 @@ fgw_stmttype *rqx_newstatement(parserstate_t *pstate)
 	if (pstate)
 	{
 	    st_n->ca=&(pstate->ca);
+	    st_n->sqltxt=(char *) &(pstate->errorinfo->extra);
 	    st_n->oserr=&(pstate->oserr);
 	    st_n->vars=pstate->vars;
+	    *st_n->sqltxt=0;
 	}
 	else
 	{
@@ -1086,12 +1088,16 @@ void rqx_move(stmtstack_t *ss_1, stmtstack_t *ss_2, errorinfo_t *ei)
 badexit1:
     st_1->ca->sqlcode=fromsqlcode(st_1->ca->sqlcode, src1->sr_serial.int_id);
     return;
+
 badexit2:
 /*
 ** report the error at the line of the target
 */
     if (ei)
+    {
 	ei->line_count=ss_2->line_count;
+    }
+
     st_2->ca->sqlcode=fromsqlcode(st_2->ca->sqlcode, src2->sr_serial.int_id);
     return;
 }
@@ -1104,6 +1110,11 @@ void rqx_nextrow(fgw_stmttype *st_p)
     fgw_sourcetype *src=st_p->source;
     int i, rc;
 
+    if (st_p->options & SO_PRIMED)
+    {
+	st_p->options &= ~SO_PRIMED;
+	return;
+    }
     if (src->lastcon!=st_p->con)
     {
 	sqd_break=src->sqd_break;
@@ -1234,6 +1245,27 @@ void rqx_errmsg(int s, int e, char *b, int l)
     }
     else
 	sprintf(b, "Unknown source %i, error %i", s, e);
+}
+
+/*
+** returns error message string from statement
+*/
+void rqx_errtxt(int s, int e, char *m, char *b, int l)
+{
+    fgw_listentry le, *lf;
+    fgw_sourcetype *src;
+    int tl;
+
+    le.int_id=s;
+    le.signature=0;
+    if ((lf=fgw_listsearch(&le, &srcser)) &&
+	(src=(fgw_sourcetype *) (lf-1),		/* FIXME a hack */
+	src->sqd_errmsg))
+	sprintf(b, "[%s] %i ", src->sr_entry.char_id, e);
+    else
+	sprintf(b, "Unknown source %i, error %i", s, e);
+    tl=strlen(b);
+    strncat(b, m, l-tl);
 }
 
 #define LRBINC	1024

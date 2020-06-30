@@ -3,10 +3,10 @@
 
 	The 4glWorks application framework
 	The Structured Query Scripting Language
-	Copyright (C) 1992-2017 Marco Greco (marco@4glworks.com)
+	Copyright (C) 1992-2018 Marco Greco (marco@4glworks.com)
 
 	Initial release: Jan 97
-	Current release: Jul 17
+	Current release: May 18
 
 	This library is free software; you can redistribute it and/or
 	modify it under the terms of the GNU Lesser General Public
@@ -137,7 +137,7 @@ char **private;
 	for (; *opt; opt++)
 	    if (*opt != ' ')
 		{
-		sqlca.sqlcode=RC_PSNTX;
+		ca->sqlcode=RC_PSNTX;
 		return;
 		}
     }

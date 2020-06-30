@@ -24,6 +24,7 @@
 */
 
 #ifndef CRXUC_H
+#include <stdio.h>
 #include "ccmnc.h"
 #include "ctypc.h"
 #include "chstc.h"
@@ -93,7 +94,7 @@ extern void rxu_setnull(exprstack_t *r, int t);
 extern int rxu_toboolean(exprstack_t *r, int *n);
 extern int rxu_toint(exprstack_t *r, int *n);
 extern int rxu_todate(exprstack_t *r, int *n);
-extern int rxu_mdy2date(const short *d, int *n);
+extern int rxu_mdy2date(short *d, int *n);
 extern double rxu_todouble(exprstack_t *r, int *n);
 extern fgw_dtime_t *rxu_todtime(exprstack_t *r, fgw_dtime_t *dt, int q, int *n);
 extern fgw_intrvl_t *rxu_toinv(exprstack_t *r, fgw_intrvl_t *in, int q, int *n);

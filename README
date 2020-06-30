@@ -1,4 +1,4 @@
-Sqsl 0.13 release notes					Apr 18, 2017
+Sqsl 0.14 release notes					Jul 13, 2019
 
 The current release has just been ripped off the 4glWorks source and
 autoconfiscated. The x4gl based demo clients need to be cleaned up extensively.
@@ -142,8 +142,8 @@ connect to Informix and DB2, which makes the db2esql source of limited use.
 Later 3.50 CliSDKs sport a db2 precompiler that is downright broken and will
 cry syntax error on embedded SQL that is perfectly fine.
 
-The Couchbase source is currently alpha and is only provided as support for
-a dzone article detailing how to migrate to Couchbase using SQSL and N1QL.
+The Couchbase source is currently beta. It supports everything except for
+unicode sequences, but DML performance might be not great.
 It requires nothing else beyound libcouchbase being available.
 
 The doc directory contains documentation on the other sources.

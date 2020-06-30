@@ -1,10 +1,10 @@
 #	MAKEFILE.am - Aubit 4gl SQSL library automake defs
 #
 #	The Structured Query Scripting Language
-#	Copyright (C) 1992-2017 Marco Greco (marco@4glworks.com)
+#	Copyright (C) 1992-2020 Marco Greco (marco@4glworks.com)
 #
 #	Initial release: Feb 05
-#	Current release: Jan 17
+#	Current release: Jun 20
 #
 #	This library is free software; you can redistribute it and/or
 #	modify it under the terms of the GNU Lesser General Public
@@ -20,7 +20,7 @@
 #	License along with this library; if not, write to the Free Software
 #	Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
 
-COMPILE = $(INFORMIXC) $(CC_EXTRA) -I$(ESQLINC) -I$(AUBITINCLDIR) \
+COMPILE = $(INFORMIXC) $(CC_EXTRA) $(ESQLDEFS) -I$(ESQLINC) -I$(AUBITINCLDIR) \
 	  -I$(top_srcdir)/oslib -DA4GL $(DNT) $(REGEX_DEFINE) $(DNEED_XSL)
 lib_LIBRARIES = libsqslaubit.a
 libsqslaubit_a_SOURCES = cascc.c cbytc.c ccmnc.c cexpc.c cfioc.c chstc.c \

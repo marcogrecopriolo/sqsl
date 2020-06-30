@@ -378,7 +378,7 @@ int rxu_todate(exprstack_t *r, int *n)
 	dt1.dt_qual=TU_DTENCODE(TU_YEAR, TU_DAY);
 	IGNORE dtextend(r->val.datetime, &dt1);
 	IGNORE dttoasc(&dt1, (char *) &str);
-	IGNORE rdefmtdate(&d, "yyyy-mm-dd", &dt1);
+	IGNORE rdefmtdate(&d, "yyyy-mm-dd", (char *) &dt1);
 #endif
 	break;
       case CDOUBLETYPE:
@@ -402,7 +402,7 @@ int rxu_todate(exprstack_t *r, int *n)
 /*
 ** converts 3 date parts into a date
 */
-int rxu_mdy2date(const short *d, int *n)
+int rxu_mdy2date(short *d, int *n)
 {
      return rmdyjul(d, n);
 }
@@ -432,7 +432,7 @@ fgw_dtime_t *rxu_todtime(exprstack_t *r, fgw_dtime_t *dt, int q, int *n)
 	pushdate(r->val.intvalue);
 	popdtime(dt, dt->dt_qual);
 #else
-	IGNORE rfmtdate(r->val.intvalue, "yyyy-mm-dd", &str);
+	IGNORE rfmtdate(r->val.intvalue, "yyyy-mm-dd", (char *) &str);
 	dt1.dt_qual=TU_DTENCODE(TU_YEAR, TU_DAY);
 	if (q<0)
 	    IGNORE dtcvasc(str, dt);

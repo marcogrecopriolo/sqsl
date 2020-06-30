@@ -1,10 +1,10 @@
 #	MAKEFILE.am - db2/cli source automake defs
 #
 #	The Structured Query Scripting Language
-#	Copyright (C) 1992-2017 Marco Greco (marco@4glworks.com)
+#	Copyright (C) 1992-2020 Marco Greco (marco@4glworks.com)
 #
 #	Initial release: Feb 05
-#	Current release: Jan 17
+#	Current release: Jun 20
 #
 #	This library is free software; you can redistribute it and/or
 #	modify it under the terms of the GNU Lesser General Public
@@ -31,7 +31,7 @@
 #
 COMPILE = $(CC) $(CC_RELOC) $(CC_SRC_EXTRA) $(DNEED_XSL) $(DNT) \
 	  -I$(top_srcdir)/sqsl -I$(top_srcdir)/oslib \
-	  "-I$(SQLLIBDIR)/include" $(DB2IFMXINCL)
+	  "-I$(SQLLIBDIR)/include" -DFGWSOURCE
 sqsldir = $(bindir)
 
 nodist_sqsl_SCRIPTS = fgwdb2cli$(DLLEXT)

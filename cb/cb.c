@@ -1,12 +1,12 @@
 /*
-	CB.c  -  SQSL interpreter Couchbase dynamic sql driver
+	CB.c  -  SQSL interpreter Couchbase dynamic N1QL driver
 
 	The 4glWorks application framework
 	The Structured Query Scripting Language
-	Copyright (C) 1992-2017 Marco Greco (marco@4glworks.com)
+	Copyright (C) 1992-2020 Marco Greco (marco@4glworks.com)
 
 	Initial release: Jun 16
-	Current release: Jul 17
+	Current release: Jun 20
 
 	This library is free software; you can redistribute it and/or
 	modify it under the terms of the GNU Lesser General Public
@@ -24,12 +24,9 @@
 */
 
 /* FIXME default connection */
-/* FIXME connection private data */
+/* FIXME avoid double string copy on processing results */
 /* FIXME timestamps and decimal natively */
-/* FIXME sqsl does not yet do booleans */
-
-/* 1 accumulare opzioni in connect */
-/* 3 settare opzioni in prepare */
+/* FIXME displayheaders only evaluated with first row */
 
 #include <errno.h>
 #include <string.h>
@@ -40,10 +37,12 @@
 #include "cosdc.h"
 #include "ccmnc.h"
 #include "chstc.h"
+#include "csqpc.h"
 #include "csqrc.h"
 #include "crxuc.h"
 #include "crqxd.h"
 #include "cxslc.h"
+#include "cb.h"
 
 #define NONOCHARS "\n\r\t"	/* characters cb doesn't like */
 #define DTIMESIZE 32		/* multiple of 8, needs to be large enough to 
@@ -62,6 +61,7 @@ char *cursory[]= {
     "SELECT",
     "EXPLAIN",
     "PREPARE",
+    "EXECUTE",
     "RETURNING",
     NULL
 };
@@ -70,12 +70,6 @@ typedef struct {
     int data;		/* offset into buffer */
     int len;		/* string length */
 } lenstring_t;
-
-typedef struct {
-    char *buf;
-    int buflen;
-    int bufmax;
-} storage_t;
 
 typedef struct cbconn 
 {
@@ -87,18 +81,10 @@ typedef struct cbconn
     lcb_t instance;
 } cbconn_t;
 
-typedef struct sqslda
-{
-    int colname;	/* offset into parse buffer for name */
-    int sqldata;	/* ditto for data string */
-    int sqllen;
-} sqslda_t;
-
 typedef struct fgw_cbstmt
 {
     lcb_CMDN1QL command;	/* cb command structure */
     int phcount;
-    int mutations;
     enum { RUNNING, PAUSING, COMPLETE } runstate;
     lenstring_t meta;		/* request results */
     lenstring_t *docs;		/* documents returned from engine */
@@ -110,7 +96,7 @@ typedef struct fgw_cbstmt
     storage_t inbuf;		/* conversion space for placeholders */
     storage_t stmttext;		/* the actual statement */
     sqslda_t *sqslda;
-    exprstack_t *exprlist;	/* stack containing one row of data */
+    exprstack_t *exprlist;	/* stack containing one first level unmarshalled document */
     int colcount;
     int maxcols;
 } fgw_cbstmttype;
@@ -132,15 +118,17 @@ DLLDECL int sqd_init(XSL_PARMS)
 /*
 ** zap ca
 */
-static void sqd_zeroca(ca_t *ca)
+static void sqd_zeroca(fgw_stmttype *st)
 {
-    memset(ca, 0, sizeof(ca_t));
+    memset(st->ca, 0, sizeof(ca_t));
+    if (st->sqltxt!=NULL)
+	*(st->sqltxt)=0;
 }
 
 /*
 ** buffer management for incoming document and placeholders
 */
-static int sqd_pushstring(storage_t *store, const char *data, int len, int term, int escape)
+int sqd_pushstring(storage_t *store, const char *data, int len, int term, int escape)
 {
     int size;
 
@@ -149,7 +137,7 @@ static int sqd_pushstring(storage_t *store, const char *data, int len, int term,
 
     if (len<0)
 	len=strlen(data);
-    if (len==0)
+    if (len==0 && !term)
 	return retval;
     if (store->buflen+len+1>store->bufmax)
     {
@@ -199,6 +187,31 @@ static int sqd_pushstring(storage_t *store, const char *data, int len, int term,
 }
 
 /*
+** connection cleanup workhorse
+*/
+static void freeconn(cbconn_t *cbconn)
+{
+	if (cbconn->instance)
+	    lcb_destroy(cbconn->instance);
+	if (cbconn->connection)
+	    free(cbconn->connection);
+	if (cbconn->user)
+	    free(cbconn->user);
+	if (cbconn->passwd)
+	    free(cbconn->passwd);
+	if (cbconn->read_options.buf)
+	    free(cbconn->read_options.buf);
+	if (cbconn->write_options.buf)
+	    free(cbconn->write_options.buf);
+	free(cbconn);
+}
+
+/* dummy callback to test connections */
+static void sqd_concallback(lcb_t instance, int cbtype, const lcb_RESPN1QL *resp)
+{
+}
+
+/*
 **  connect to an engine
 */
 DLLDECL void sqd_connect(char *host, char *as, char *user, char *passwd, char *opt,
@@ -207,8 +220,12 @@ DLLDECL void sqd_connect(char *host, char *as, char *user, char *passwd, char *o
     char *h;
     cbconn_t *cbconn;
     struct lcb_create_st crst;
+    lcb_CMDN1QL command;
+    storage_t storage;
+    int set_scan = 1;
 
-    sqd_zeroca(ca);
+    memset(ca, 0, sizeof(ca_t));
+    memset(&storage, 0, sizeof(storage));
     h=as && !host? as: host;
 
     /* no default connection */
@@ -250,23 +267,61 @@ DLLDECL void sqd_connect(char *host, char *as, char *user, char *passwd, char *o
 	ca->sqlcode=lcb_get_bootstrap_status(cbconn->instance);
     }
 
-    /* no options for now */
-    if (opt)
-	for (; *opt; opt++)
-	    if (*opt != ' ')
-	    {
-		ca->sqlcode=RC_NIMPL;
-		return;
-	    }
-     if (sqd_pushstring(&cbconn->read_options,
-			"\"scan_consistency\":\"statement_plus\"", -1, 0, 0)<0)
-	goto bad;
+    if (ca->sqlcode!=0)
+	goto bad1;
 
+    /* if we have options test the connection */
+    if (opt)
+    {       
+	int d, l;
+
+        if (sqd_pushstring(&cbconn->read_options, opt, -1, 0, 0)<0)
+            goto bad;
+        if (XSL_CALL(fgw_strcasestr)(opt, "\"scan_consistency\":"))
+            set_scan=0;
+        else if (sqd_pushstring(&cbconn->read_options, ", ", -1, 0, 0)<0)
+            goto bad;
+	if (set_scan && sqd_pushstring(&cbconn->read_options,
+                        "\"scan_consistency\":\"statement_plus\"", -1, 0, 0)<0)
+	    goto bad;
+
+	if (sqd_pushstring(&storage, "{\"statement\": \"select 1\", ", -1, 0, 0)<0)
+	    goto bad;
+	if (sqd_pushstring(&storage, cbconn->read_options.buf, cbconn->read_options.buflen, 0, 0)<0)
+	    goto bad;
+	if (sqd_pushstring(&storage, "}", 1, 1, 0)<0)
+	    goto bad;
+
+	/* libcouchbase has the bad habit of aborting on bad input jsons */
+	d=0;
+	l=storage.buflen;
+	if (!json_parseobject(storage.buf, &d, &l, NULL, NULL, NULL, NULL, NULL))
+	{
+	    ca->sqlcode=LCB_EINVAL;
+	    goto bad1;
+	}
+
+	command.query=storage.buf;
+	command.nquery=storage.buflen;
+	command.content_type="application/json";
+	command.callback=sqd_concallback;
+	ca->sqlcode=lcb_n1ql_query(cbconn->instance, NULL, &command);
+	if (ca->sqlcode==0)
+	    lcb_wait(cbconn->instance);
+	free(storage.buf);
+	if (ca->sqlcode!=0)
+	    goto bad1;
+    }
     *private=(char *) cbconn;
     return;
 
 bad:
     ca->sqlcode=RC_NOMEM;
+bad1:
+    if (storage.buf)
+	free(storage.buf);
+    if (cbconn)
+	freeconn(cbconn);
 }
  
 /*
@@ -290,22 +345,7 @@ DLLDECL void sqd_disconnect(char *host, char *name, ca_t *ca, char *private)
     else if (!host && !name)
 	ca->sqlcode=RC_NIMPL;
     else if (private)
-    {
-	cbconn_t *cbconn=(cbconn_t *) private;
-
-	lcb_destroy(cbconn->instance);
-	if (cbconn->connection)
-	    free(cbconn->connection);
-	if (cbconn->user)
-	    free(cbconn->user);
-	if (cbconn->passwd)
-	    free(cbconn->passwd);
-	if (cbconn->read_options.buf)
-	    free(cbconn->read_options.buf);
-	if (cbconn->write_options.buf)
-	    free(cbconn->write_options.buf);
-	free(cbconn);
-    }
+	freeconn((cbconn_t *) private);
     else
 	ca->sqlcode=EINVAL;
 }
@@ -331,6 +371,22 @@ static int sqd_zapstring(storage_t *store, int offset, int len)
 	XSL_CALL(fgw_move)(store->buf, store->buf+src, store->buflen);
     }
     return len;
+}
+
+/*
+** save storage for later restore
+*/
+static void sqd_pushstore(storage_t *store, storage_t *save)
+{
+    save->buflen = store->buflen;
+}
+
+/*
+** restore storage to previous state
+*/
+static void sqd_popstore(storage_t *store, storage_t *save)
+{
+    store->buflen = save->buflen;
 }
 
 /*
@@ -440,7 +496,6 @@ DLLDECL void sqd_closestatement(fgw_stmttype *st)
 	st->curstate>=ST_NEWLYOPENED)
     {
 	st_p->colcount=0;
-	st_p->mutations=0;
 	st_p->docbuf.buflen=0;
 	st->curstate=ST_DECLARED;
     }
@@ -451,7 +506,7 @@ DLLDECL void sqd_closestatement(fgw_stmttype *st)
 */
 DLLDECL void sqd_setcursor(fgw_stmttype *st, char *curs)
 {
-    sqd_zeroca(st->ca);
+    sqd_zeroca(st);
     /* no cursors yet */
 }
  
@@ -463,7 +518,7 @@ static void sqd_describe(fgw_stmttype *st)
 ** this all gets done after the select
 ** no cols for now
 */
-    sqd_zeroca(st->ca);
+    sqd_zeroca(st);
     st_p->colcount=0;
 }
 
@@ -481,15 +536,12 @@ DLLDECL void sqd_prepare(fgw_stmttype *st, char *query)
     if (st && st->curstate==ST_UNINITIALIZED &&
 	(st_p=(fgw_cbstmttype *) st->sqlstmt))
     {
-	sqd_zeroca(st->ca);
+	sqd_zeroca(st);
 	if ((st->options & SO_WITHHOLD))
 	{
 	    st->ca->sqlcode=RC_NIMPL;
 	    return;
 	}
-	if (st->ca->sqlcode)
-	    return;
-
 /*
 ** determine if this thing returns values
 */
@@ -519,6 +571,7 @@ DLLDECL void sqd_prepare(fgw_stmttype *st, char *query)
 	    st->ca->sqlcode=RC_NOMEM;
 	    return;
 	}
+
 	/* push options if any */
 	if (!declared && cbconn->write_options.buf && 
 	    (sqd_pushstring(&st_p->stmttext,
@@ -549,6 +602,7 @@ DLLDECL void sqd_prepare(fgw_stmttype *st, char *query)
 
 	if (st->options & (SO_REALPREPARED | SO_INSCURS))
 	    st_p->command.cmdflags|=LCB_CMDN1QL_F_PREPCACHE;
+	st->options |= SO_LATE_DESCRIBE;
     }
     else if (st)
 	st->ca->sqlcode=RC_INSID;
@@ -680,6 +734,65 @@ static void sqd_doexec(fgw_stmttype *st, fgw_cbstmttype *st_p, cbconn_t *cbconn)
 }
 
 /*
+** populate mutations and errors
+*/
+static void sqd_handlemeta(fgw_stmttype *st)
+{
+    struct fgw_cbstmt *st_p=(fgw_cbstmttype *) st->sqlstmt;
+    int r, d, l;
+    enum objtype t;
+    exprstack_t retval;
+
+    /* do we have mutations? */
+    d=st_p->meta.data;
+    l=st_p->meta.len;
+    t=json_searchobject("metrics", st_p->docbuf.buf, &d, &l);
+    if (t==T_OBJECT)
+    {
+	int d1=d, l1=l;
+
+	t=json_searchobject("mutationCount", st_p->docbuf.buf, &d, &l);
+	if (t==T_NUM && json_parsenum(st_p->docbuf.buf, &d, &l, &retval))
+	    st->ca->sqlerrd2=(int) retval.val.real;
+	else
+	{
+	    t=json_searchobject("resultCount", st_p->docbuf.buf, &d1, &l1);
+	    if (t==T_NUM && json_parsenum(st_p->docbuf.buf, &d1, &l1, &retval))
+		st->ca->sqlerrd2=(int) retval.val.real;
+	}
+    }
+
+    /* do we have errors? */
+    d=st_p->meta.data;
+    l=st_p->meta.len;
+    t=json_searchobject("errors", st_p->docbuf.buf, &d, &l);
+    if (t==T_ARRAY)
+    {
+
+	/* report the first error */
+	t=json_searcharray(0, st_p->docbuf.buf, &d, &l);
+	if (t==T_OBJECT)
+	{
+	    int d1=d, l1=l;
+	    int max;
+	    sqslda_t name;
+
+	    t=json_searchobject("code", st_p->docbuf.buf, &d, &l);
+	    if (t==T_NUM && json_parsenum(st_p->docbuf.buf, &d, &l, &retval))
+		st->ca->sqlcode=(int) retval.val.real;
+	    t=json_searchobject("msg", st_p->docbuf.buf, &d1, &l1);
+	    if (t==T_STRING && json_parsestring(st_p->docbuf.buf, &d1, &l1, NULL, &name, NULL))
+	    {
+		int max=name.sqllen<ERRMSGLEN? name.sqllen: ERRMSGLEN-1;
+
+		strncpy(st->sqltxt, st_p->docbuf.buf+name.sqldata, max);
+		st->sqltxt[max]=0;
+	    }
+	}
+    }
+}
+
+/*
 **  execute non select statement
 */
 DLLDECL void sqd_immediate(fgw_stmttype *st)
@@ -688,7 +801,7 @@ DLLDECL void sqd_immediate(fgw_stmttype *st)
     int i, r=0;
     cbconn_t *cbconn=(cbconn_t *) st->con->private_area;
 
-    sqd_zeroca(st->ca);
+    sqd_zeroca(st);
     if (!st)
 	return;
     else if (!(st_p=(fgw_cbstmttype *) st->sqlstmt))
@@ -699,21 +812,22 @@ DLLDECL void sqd_immediate(fgw_stmttype *st)
     {
 	sqd_doexec(st, st_p, cbconn);
 
-	/* FIXME handle mutations here or in sqd_callback() */
-	st->ca->sqlerrd2=st_p->mutations;
-/*	if (st->ca->sqlcode==0 && st_p->mutations==0)
+	sqd_handlemeta(st);
+/*	if (st->ca->sqlcode==0 && st_p->ca->sqlerrd2==0)
 	    st->ca->sqlcode=RC_NOTFOUND;
 */
     }
 }
 
 /*
-**  loads next row
+**  loads next document
 */
 DLLDECL void sqd_nextrow(fgw_stmttype *st)
 {
     struct fgw_cbstmt *st_p;
-    int r;
+    storage_t docbuf_save;
+    int r, d, l;
+    enum objtype t;
     cbconn_t *cbconn=(cbconn_t *) st->con->private_area;
 
     if (!st)
@@ -734,7 +848,7 @@ DLLDECL void sqd_nextrow(fgw_stmttype *st)
 	st_p->doccount=0;
 	st_p->curdoc=0;
 	st_p->processed_length=0;
-	sqd_zeroca(st->ca);
+	sqd_zeroca(st);
 	sqd_doexec(st, st_p, cbconn);
 	if (st->ca->sqlcode==0)
 	    st->curstate=ST_OPENED;
@@ -756,27 +870,92 @@ DLLDECL void sqd_nextrow(fgw_stmttype *st)
 
     if (st_p->curdoc>=st_p->doccount)
     {
-/* FIXME handle meta and missing meta */
-	st->ca->sqlcode=RC_NOTFOUND;
+	sqd_handlemeta(st);
+	if (st->ca->sqlcode==0)
+	    st->ca->sqlcode=RC_NOTFOUND;
 	return;
     }
 
+    sqd_pushstore(&st_p->docbuf, &docbuf_save);
     st_p->colcount=0;
 
-    /* FIXME doc parsing goes here */
-    st_p->colcount=1;
     if (!st_p->exprlist)
-	st_p->exprlist=(exprstack_t *) malloc(sizeof(exprstack_t));
+    {
+	if (st_p->maxcols == 0)
+		st_p->maxcols = 1;
+	st_p->exprlist=(exprstack_t *) malloc(sizeof(exprstack_t)*st_p->maxcols);
+    }
 
-    /* FIXME fill sqslda properly! */
     if (!st_p->sqslda)
-	st_p->sqslda=(sqslda_t *) malloc(sizeof(sqslda_t));
+	st_p->sqslda=(sqslda_t *) malloc(sizeof(sqslda_t)*st_p->maxcols);
 
-    /* FIXME handle rows with no data / lack of memory */
-    st_p->sqslda->sqldata=st_p->docs[st_p->curdoc].data;
-    st_p->sqslda->sqllen=st_p->docs[st_p->curdoc].len;
-    st_p->sqslda->colname=sqd_pushstring(&st_p->docbuf, "json", 4, 1, 0);
-    st_p->exprlist->type=CSTRINGTYPE;
+    d = st_p->docs[st_p->curdoc].data;
+    l = st_p->docs[st_p->curdoc].len;
+    switch (t=json_doctype(st_p->docbuf.buf, &d, &l))
+    {
+      case T_EMPTY:
+	st_p->colcount=1;
+	st_p->sqslda->colname=sqd_pushstring(&st_p->docbuf, "json", 4, 1, 0);
+	st_p->sqslda->sqldata=sqd_pushstring(&st_p->docbuf, "{}", 2, 1, 0);
+	st_p->sqslda->sqllen=2;
+	st_p->exprlist->type=CSTRINGTYPE;
+	break;
+      case T_OBJECT:
+	if (!json_parseobject(st_p->docbuf.buf, &d, &l, &st_p->exprlist, &st_p->sqslda,
+			      &st_p->maxcols, &st_p->colcount, &st_p->docbuf) ||
+	    json_skipblanks(st_p->docbuf.buf, &d, &l))
+	{
+	    sqd_popstore(&st_p->docbuf, &docbuf_save);
+	    t=T_UNKNOWN;
+	}
+	break;
+
+      /* array we return as a string */
+      case T_ARRAY:
+	t=T_UNKNOWN;
+	break;
+      case T_STRING:
+	if (!json_parsestring(st_p->docbuf.buf, &d, &l, st_p->exprlist, st_p->sqslda, &st_p->docbuf) ||
+	    json_skipblanks(st_p->docbuf.buf, &d, &l))
+	{
+	    sqd_popstore(&st_p->docbuf, &docbuf_save);
+	    t=T_UNKNOWN;
+	}
+	break;
+      case T_NUM:
+	if (!json_parsenum(st_p->docbuf.buf, &d, &l, st_p->exprlist) ||
+	    json_skipblanks(st_p->docbuf.buf, &d, &l))
+	    t=T_UNKNOWN;
+	break;
+      case T_BOOL:
+	if (!json_parsebool(st_p->docbuf.buf, &d, &l, st_p->exprlist) ||
+	    json_skipblanks(st_p->docbuf.buf, &d, &l))
+	    t=T_UNKNOWN;
+	break;
+      case T_NULL:
+	if (!json_parsenull(st_p->docbuf.buf, &d, &l, st_p->exprlist) ||
+	    json_skipblanks(st_p->docbuf.buf, &d, &l))
+	    t=T_UNKNOWN;
+    }
+
+    
+    switch (t)
+    {
+
+      /* what we can't work out we return verbatim */
+      case T_UNKNOWN:
+	st_p->colcount=1;
+	st_p->sqslda->sqldata=st_p->docs[st_p->curdoc].data;
+	st_p->sqslda->sqllen=st_p->docs[st_p->curdoc].len;
+	st_p->sqslda->colname=sqd_pushstring(&st_p->docbuf, "json", 4, 1, 0);
+	st_p->exprlist->type=CSTRINGTYPE;
+	break;
+      case T_OBJECT:
+	break;
+      default:
+	st_p->colcount=1;
+	st_p->sqslda->colname=sqd_pushstring(&st_p->docbuf, "json", 4, 1, 0);
+    }
 
     st_p->processed_length+=st_p->docs[st_p->curdoc].len+1;
     st_p->curdoc++;
@@ -800,16 +979,10 @@ DLLDECL exprstack_t *sqd_nexttoken(int field, fgw_stmttype *st)
 	return NULL;
     col=st_p->sqslda+field;
     e=st_p->exprlist+field;
-    if (col->sqllen==-1)
+    if (e->type==CSTRINGTYPE)
     {
-	e->length=-1;
-	e->val.string=NULL;
-    }
-    else
-    {
+	e->val.string=st_p->docbuf.buf+col->sqldata;
 	e->length=col->sqllen;
-	if (e->type==CSTRINGTYPE)
-	    e->val.string=col->sqldata+st_p->docbuf.buf;
     }
     return e;
 }

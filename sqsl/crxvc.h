@@ -25,6 +25,8 @@
 
 #ifndef CRXVC_H
 #include "ccmnc.h"
+#include "crxuc.h"
+#include "ctypc.h"
 
 extern void sqv_setvar(fgw_loc_t *h, exprstack_t *e, exprstack_t *v);
 extern void sqv_newvar(fgw_loc_t *h, exprstack_t *e, char *l, exprstack_t *v);

@@ -57,6 +57,7 @@ typedef struct
 
 /* types, datetimes, intervals, decimals */
 #ifndef FGWSOURCE
+#include <sqlhdr.h>
 #include <sqltypes.h>
 #include <datetime.h>
 #include <decimal.h>

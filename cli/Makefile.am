@@ -4,7 +4,7 @@
 #	Copyright (C) 1992-2017 Marco Greco (marco@4glworks.com)
 #
 #	Initial release: Feb 05
-#	Current release: Jan 17
+#	Current release: Jun 20
 #
 #	This library is free software; you can redistribute it and/or
 #	modify it under the terms of the GNU Lesser General Public
@@ -22,7 +22,7 @@
 
 # FIXME c4gl and esql can't handle -D defines with embedded spaces
 COMPILE = $(CC) $(CC_EXTRA) -I$(ESQLINC) -I$(top_srcdir)/sqsl \
-	    -I$(top_srcdir)/oslib \
+	    -DESQLVER=$(ESQLVER) -I$(top_srcdir)/oslib \
 	    $(READLINE_DEFINE) $(DNT) -DVERSION="\"$(VERSION)\"" \
 	    -DPACKAGE_NAME="\"$(PACKAGE_NAME)\"" \
             -DPACKAGE_DATE="\"$(PACKAGE_DATE)\"" -DCOMP_NAME="\"cli\""

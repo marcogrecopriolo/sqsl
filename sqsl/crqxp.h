@@ -58,7 +58,9 @@ extern void rqx_nextrow(fgw_stmttype *st_p);
 extern exprstack_t *rqx_nexttoken(int field, fgw_stmttype *st_p);
 extern void rqx_describecol(fgw_stmttype *st_p, int f, exprstack_t *e);
 extern int rqx_counttokens(fgw_stmttype *st_p);
+extern void rqx_error(fgw_stmttype *st_p, char *b, int l);
 extern void rqx_errmsg(int s, int e, char *b, int l);
+extern void rqx_errtxt(int s, int e, char *m, char *b, int l);
 extern void rqx_rejcopy(fgw_stmttype *st, char *source, int len);
 extern void rqx_rejdump(fgw_stmttype *st);
  

@@ -2,10 +2,10 @@
 #
 #	The 4glWorks application framework
 #	The Structured Query Scripting Language
-#	Copyright (C) 1992-2016 Marco Greco (marco@4glworks.com)
+#	Copyright (C) 1992-2020 Marco Greco (marco@4glworks.com)
 #
 #	Initial release: Mar 03
-#	Current release: May 16
+#	Current release: Jun 20
 #
 #	This library is free software; you can redistribute it and/or
 #	modify it under the terms of the GNU Lesser General Public
@@ -72,6 +72,7 @@
 504	Function returned unexpected number of values
 505	You are not allowed to use fork
 506	Regular expression syntax error
+507	Source does not support describe in prepare statements
 #
 600	Invalid connection identifier
 601	Duplicate connection identifier
