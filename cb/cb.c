@@ -186,6 +186,30 @@ int sqd_pushstring(storage_t *store, const char *data, int len, int term, int es
     return retval;
 }
 
+int sqd_pushbyte(storage_t *store, char data)
+{
+    int size;
+
+    /* just an offset for now */
+    int retval=store->buflen;
+
+    if (store->buflen+1>store->bufmax)
+    {
+	char *newbuf;
+
+	size=DOCBUFINC;
+	newbuf=realloc(store->buf, store->bufmax+size);
+
+	if (newbuf==NULL)
+	    return -1;
+	store->buf=newbuf;
+	store->bufmax+=size;
+    }
+    *(store->buf+store->buflen)=data;
+    store->buflen++;
+    return retval;
+}
+
 /*
 ** connection cleanup workhorse
 */
@@ -392,7 +416,7 @@ static void sqd_popstore(storage_t *store, storage_t *save)
 /*
 ** lcb N1QL callback
 */
-static void sqd_callback(lcb_t instance, int cbtype, const lcb_RESPN1QL *resp)
+static void sqd_callback(lcb_t instance, int cbtype, lcb_RESPN1QL *resp)
 {
     fgw_stmttype *st=(fgw_stmttype *) resp->cookie;
     fgw_cbstmttype *st_p;

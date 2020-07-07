@@ -6,7 +6,7 @@
 	Copyright (C) 1992-2020 Marco Greco (marco@4glworks.com)
 
 	Initial release: Jun 16
-	Current release: Jun 20
+	Current release: Jul 20
 
 	This library is free software; you can redistribute it and/or
 	modify it under the terms of the GNU Lesser General Public
@@ -66,6 +66,9 @@ int json_parsebool(char *buf, int *d, int *l, exprstack_t *retval);
 int json_parsenull(char *buf, int *d, int *l, exprstack_t *retval);
 int json_parsenum(char *buf, int *d, int *l, exprstack_t *retval);
 int json_skipblanks(char *buf, int *d, int *l);
-int json_encodesurrogate(storage_t *docbuf, int u);
+int json_encodesurrogate(storage_t *docbuf, int surrogate, int u);
+int json_encodeunicode(storage_t *docbuf, int u);
 
 int sqd_pushstring(storage_t *store, const char *data, int len, int term, int escape);
+int sqd_pushbyte(storage_t *store, char data);
+

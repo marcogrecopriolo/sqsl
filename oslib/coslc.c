@@ -390,9 +390,9 @@ DLLDECL void *fgw_dlsym(void *h, char *s)
 /*
 ** dlclose
 */
-DLLDECL void *fgw_dlclose(void *h)
+DLLDECL int fgw_dlclose(void *h)
 {
-    FreeLibrary(h);
+    return FreeLibrary(h);
 }
 
 static char errbuf[20];

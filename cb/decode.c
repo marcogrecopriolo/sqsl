@@ -537,6 +537,7 @@ int json_parsestring(char *buf, int *d, int *l, exprstack_t *retval, sqslda_t *s
     int original=copy_from;
     int string_len=0;
     int string_start;
+    int surrogate=-1, surrogate_start=-1;
 
     if (*l<2 || (*(buf+*d))!='"')
 	return 0;
@@ -554,6 +555,10 @@ int json_parsestring(char *buf, int *d, int *l, exprstack_t *retval, sqslda_t *s
 
 	  /* found the other side */
 	  case '"':
+
+	    /* we had an initial surrogate code point, never seen the second */
+	    if (surrogate_start>=0)
+		return 0;
 	    if (retval!=NULL)
 	        retval->type=CSTRINGTYPE;
 
@@ -586,39 +591,42 @@ int json_parsestring(char *buf, int *d, int *l, exprstack_t *retval, sqslda_t *s
 		return 0;
 
 	    /* copy outstanding string */
-	    if (sqslda!=NULL && copy_from>0 && sqd_pushstring(docbuf, buf+copy_from, *d-copy_from, 0, 0) < 0)
+	    if (sqslda!=NULL && surrogate<0 &&
+		copy_from>0 && sqd_pushstring(docbuf, buf+copy_from, *d-copy_from, 0, 0) < 0)
 		return 0;
 
 	    (*d)++;
 	    (*l)--;
 	    switch (*(buf+*d))
 	    {
-	       case '"':
-	       case '\\':
-	       case '/':
-		 copy_from = *d;
-		 break;
-	       case 'b':
-		 if (sqslda!=NULL && sqd_pushstring(docbuf, "\b", 1, 0, 0) < 0)
+	      case '"':
+	      case '\\':
+	      case '/':
+		copy_from = *d;
+		break;
+	      case 'b':
+		if (sqslda!=NULL && sqd_pushstring(docbuf, "\b", 1, 0, 0) < 0)
 		    return 0;
-		 copy_from = *d+1;
-		 break;
-	       case 'f':
-		 if (sqslda!=NULL && sqd_pushstring(docbuf, "\f", 1, 0, 0) < 0)
+		copy_from = *d+1;
+		break;
+	      case 'f':
+		if (sqslda!=NULL && sqd_pushstring(docbuf, "\f", 1, 0, 0) < 0)
 		    return 0;
-		 copy_from = *d+1;
-		 break;
-	       case 'n':
-		 if (sqslda!=NULL && sqd_pushstring(docbuf, "\n", 1, 0, 0) < 0)
+		copy_from = *d+1;
+		break;
+	      case 'n':
+		if (sqslda!=NULL && sqd_pushstring(docbuf, "\n", 1, 0, 0) < 0)
 		    return 0;
-		 copy_from = *d+1;
-		 break;
-	       case 't':
-		 if (sqslda!=NULL && sqd_pushstring(docbuf, "\t", 1, 0, 0) < 0)
+		copy_from = *d+1;
+		break;
+	      case 't':
+		if (sqslda!=NULL && sqd_pushstring(docbuf, "\t", 1, 0, 0) < 0)
 		    return 0;
-		 copy_from = *d+1;
-		 break;
-	       case 'u':
+		copy_from = *d+1;
+		break;
+
+	      /* libcouchbase handles unicode code points, but for completenes */
+	      case 'u':
 		if (*l<4)
 		    return 0;
 		u=0;
@@ -630,15 +638,51 @@ int json_parsestring(char *buf, int *d, int *l, exprstack_t *retval, sqslda_t *s
 		    if (c>='0' && c<='9')
 			u=u*16+c-'0';
 		    else if (c>='A' && c<='F')
-			u=u*16+c-'A';
+			u=u*16+c-'A'+10;
 		    else if (c>='a' && c<='f')
-			u=u*16+c-'a';
+			u=u*16+c-'a'+10;
 		    else
 			return 0;
 		}
-		 if (sqslda!=NULL && json_encodesurrogate(docbuf, u) < 0)
-		    return 0;
+
+		// first of a pair
+		if (surrogate<0)
+		{
+		    if (u>=0xD800 && u<=0xDBFF)
+		    {
+		 	surrogate=u;
+			surrogate_start=*d;
+		 	break;
+
+		    }
+
+		    /* invalid unicode */
+		    else if (u>=0xDC00 && u<=0xDFFF)
+			return 0;
+		}
+		else
+		{
+		    /* invalid unicode */
+		    if (u<0xDC00 || u>0xDFFF)
+			return 0;
+
+		    /* 2nd codepoint does't immediately follow first */
+		    if (*d!=surrogate_start+6)
+			return 0;
+		}
+		if (sqslda!=NULL)
+		{
+		    if (surrogate>=0)
+		    {
+			if (json_encodesurrogate(docbuf, surrogate, u)<0)
+		    	    return 0;
+		    }
+		    else if (json_encodeunicode(docbuf, u)<0)
+			return 0;
+		}
 		copy_from=*d+1;
+		surrogate=-1;
+		surrogate_start=-1;
 		break;
 	      default:
 
@@ -657,9 +701,55 @@ int json_parsestring(char *buf, int *d, int *l, exprstack_t *retval, sqslda_t *s
 /*
 ** encode a unicode rune
 */
-int json_encodesurrogate(storage_t *docbuf, int u)
+int json_encodesurrogate(storage_t *docbuf, int surrogate, int u)
 {
-	/* TODO */
+    return json_encodeunicode(docbuf, 0x10000+(((surrogate&0x3FF) << 10)|(u&0x3FF)));
+}
+
+int json_encodeunicode(storage_t *docbuf, int u)
+{
+    char c[4];
+    int l;
+
+    /* ascii */
+    if (u<0x80)
+        return sqd_pushbyte(docbuf, (char) (u&0x7F));
+
+    /* two bytes */
+    else if (u<0x800)
+    {
+	c[1]=(u&0xBF)|0x80;
+	u >>=6;
+        c[0]=(u&0x1F)|0xC0;
+	l=2;
+    }
+
+    /* three */
+    else if (u<0x10000)
+    {
+	c[2]=(u&0xBF)|0x80;
+	u >>=6;
+	c[1]=(u&0xBF)|0x80;
+	u >>=6;
+        c[0]=(u&0x0F)|0xE0;
+	l=3;
+    }
+
+    /* four */
+    else if (u <= 0x1FFFFF)
+    {
+	c[3]=(u&0xBF)|0x80;
+	u >>=6;
+	c[2]=(u&0xBF)|0x80;
+	u >>=6;
+	c[1]=(u&0xBF)|0x80;
+	u >>=6;
+        c[0]=(u&0x07)|0xF0;
+	l=4;
+    }
+    else
+	return -1;
+    return sqd_pushstring(docbuf, (char *) c, l, 0, 0);
 }
 
 /*
