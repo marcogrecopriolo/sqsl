@@ -46,7 +46,9 @@ LDADD = $(QT_LIBS) qrc_resources.o moc_qtdemo.o $(top_srcdir)/sqsl/libsqsl.a $(O
 
 bin_PROGRAMS = qtdemo
 qtdemo_SOURCES = qtdemo.cpp qtdemo.h args.c csqmc.c csqmc.h qtdemo.ui resources.qrc
-EXTRA_qtdemo_DEPENDENCIES = ui_qtdemo.h
+EXTRA_qtdemo_DEPENDENCIES = qrc_resources.o
+
+qtdemo.o: ui_qtdemo.h
 
 ui_qtdemo.h: qtdemo.ui
 	$(UIC) -o $@ $<
