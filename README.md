@@ -55,7 +55,7 @@ and if you wanted to speed up things, you maybe could
 
 In addition to the above, and aside from standard control and simple statements, the language sports a number of other useful features such as a simple but effective expansion facility and the ability to load dynamically data sources or user defined functions. All of them are detailed in the language reference and demonstrated in the following sample scripts.
 
-The language is implemented in the form a of a library (two API flavours available: c or x4gl) which can be used to plug the interpreter in your application of choice, and a couple of sample clients, of which one has a readline library based interface and the other curses (in two implementations: Informix 4gl and Aubit4gl). There are skeletal NPAPI and Node.js wrappers with demo shells implemented as ACE based web pages and NWJS apps. These are not yet ready for public consumption.
+The language is implemented in the form a of a library (two API flavours available: c or x4gl) which can be used to plug the interpreter in your application of choice, and three sample clients, of which one has a readline library based interface, the second curses (in two implementations: Informix 4gl and Aubit4gl), and the last a QT based GUI. There are skeletal NPAPI and Node.js wrappers with demo shells implemented as ACE based web pages and NWJS apps. These are not yet ready for public consumption.
 
 Connectivity is currently provided, in the form of shared objects, for the Informix, DB2, SolidDB and Couchbase engines.
 

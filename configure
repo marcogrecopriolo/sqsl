@@ -3074,7 +3074,7 @@ END
   fi
 fi
 
-PACKAGE_DATE="2021-08-24 16:30:02 +0100"
+PACKAGE_DATE="2021-08-24 16:44:45 +0100"
 
 
 
@@ -7621,6 +7621,8 @@ $as_echo_n "checking needed symlinks... " >&6; }
 ../sqsl/ctypc.h i4gl/ctypc.h
 ../sqsl/cxslc.h i4gl/cxslc.h
 ../cli/args.c qtdemo/args.c
+../cli/csqmc.c qtdemo/csqmc.c
+../cli/csqmc.h qtdemo/csqmc.h
 
 !
     { $as_echo "$as_me:${as_lineno-$LINENO}: result: $result" >&5
