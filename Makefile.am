@@ -1,10 +1,10 @@
 #	MAKEFILE.am - Master automake defs
 #
 #	The Structured Query Scripting Language
-#	Copyright (C) 1992-2017 Marco Greco (marco@4glworks.com)
+#	Copyright (C) 1992-2021 Marco Greco (marco@4glworks.com)
 #
 #	Initial release: Feb 05
-#	Current release: Apr 17
+#	Current release: Aug 21
 #
 #	This library is free software; you can redistribute it and/or
 #	modify it under the terms of the GNU Lesser General Public
@@ -20,7 +20,7 @@
 #	License along with this library; if not, write to the Free Software
 #	Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
 
-SUBDIRS = oslib sqsl cli $(I4GLUI) $(A4GLUI) \
+SUBDIRS = oslib sqsl cli $(QTDEMO) $(I4GLUI) $(A4GLUI) \
 	  $(DB2SO) $(IFMXSO) $(SOLIDSO) $(NETSO) $(CBSO) json \
 	  doc demo test tools tools/mvs
 DIST_SUBDIRS = sqsl oslib cli i4gl i4gldemo aubit4gl aubitdemo \

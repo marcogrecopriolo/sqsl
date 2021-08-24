@@ -3,10 +3,10 @@
 
 	The 4glWorks application framework
 	The Structured Query Scripting Language
-	Copyright (C) 1992-2016 Marco Greco (marco@4glworks.com)
+	Copyright (C) 1992-2021 Marco Greco (marco@4glworks.com)
 
 	Initial release: May 05
-	Current release: Sep 16
+	Current release: Aug 21
 
 	This library is free software; you can redistribute it and/or
 	modify it under the terms of the GNU Lesser General Public
@@ -22,6 +22,8 @@
 	License along with this library; if not, write to the Free Software
 	Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
 */
+
+#include "csqpc.h"
 
 #define TOK_READ 1
 #define TOK_EXEC 2
@@ -48,4 +50,4 @@
 #define MOD_OPTS 0xfff0
 
 extern int fgw_sqlexplode(char *src, int srclen, fgw_loc_t *vars, int verbose, int expstate,
-                   int iidx, int *oidx, char **expptr, int *s, int *e, int *n);
+                   int iidx, int *oidx, char **expptr, int *s, int *e, int *n, execinfo_t *execinfo);

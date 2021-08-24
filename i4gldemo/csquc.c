@@ -3,10 +3,10 @@
 
 	The Structured Query Scripting Language
 	(Borrowed from) The 4glWorks application framework
-	Copyright (C) 1992-2016 Marco Greco (marco@4glworks.com)
+	Copyright (C) 1992-2021 Marco Greco (marco@4glworks.com)
 
 	Initial release: Mar 00
-	Current release: Jan 16
+	Current release: Aug 21
 
 	This library is free software; you can redistribute it and/or
 	modify it under the terms of the GNU Lesser General Public
@@ -37,8 +37,7 @@
 /*
 ** display no of affected rows
 */
-void sqsl_numrows(rows)
-int rows;
+void sqsl_numrows(int rows, execinfo_t *execinfo)
 {
     char txt1[256], txt2[256];
 
@@ -55,10 +54,7 @@ int rows;
 /*
 ** returns an error message text
 */
-void sqsl_getmessage(e, b, l)
-int e;
-char *b;
-int l;
+void sqsl_getmessage(int e, char *b, int l)
 {
     char *p, m[256];
 
@@ -73,8 +69,7 @@ int l;
 /*
 **  confirm database operation
 */
-int sqsl_asktouch(touch)
-int touch;
+int sqsl_asktouch(int touch, execinfo_t *execinfo)
 {
     int r;
 
@@ -98,13 +93,7 @@ int touch;
 /*
 **  expansion facility prompt/passwd functionality
 */
-int sqsl_promptpasswd(tok, opts, txt, e_buf, len, verbose)
-int tok;
-int opts;
-char *txt;
-char *e_buf;
-int *len;
-int verbose;
+int sqsl_promptpasswd(int tok, int opts, char *txt, char *e_buf, int *len, int verbose, execinfo_t *execinfo)
 {
     pushint(tok==TOK_PROMPT);
     pushquote(txt, strlen(txt));
@@ -121,15 +110,7 @@ int verbose;
 /*
 ** expansion facility pick list functionality
 */
-int sqsl_picklist(tok, opts, txt, e_buf, len, sep, quotes, verbose)
-int tok;
-int opts;
-char *txt;
-char *e_buf;
-int *len;
-char *sep;
-char *quotes;
-int verbose;
+int sqsl_picklist(int tok, int opts, char *txt, char *e_buf, int *len, char *sep, char *quotes, int verbose, execinfo_t *execinfo)
 {
     char *q_mode;
 

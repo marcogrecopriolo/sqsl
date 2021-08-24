@@ -22,6 +22,7 @@ dnl	Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
 
 AC_INIT(sqsl, 0.14)
 AC_CONFIG_AUX_DIR(./utils)
+m4_include([m4/ax_have_qt.m4])
 AM_INIT_AUTOMAKE
 AC_SUBST(PACKAGE_DATE, esyscmd(date "+\"%Y-%m-%d %H:%M:%S %z\""))
 AC_PREFIX_DEFAULT(`pwd`/distbin/sqsl)
@@ -668,7 +669,14 @@ fi
     else
 	AC_SUBST(AUBEXT, ".exe")
     fi
-
+#
+# check for qt
+#
+    AX_HAVE_QT
+    if test "$have_qt" = yes
+    then
+	AC_SUBST(QTDEMO, qtdemo)
+    fi
 #
 # look for DB2
 #
@@ -877,6 +885,7 @@ esac
 AC_OUTPUT(Makefile cli/Makefile sqsl/Makefile
 	  i4gldemo/Makefile i4gl/Makefile 
 	  aubitdemo/Makefile aubit4gl/Makefile
+	  qtdemo/Makefile
 	  ifmx/Makefile ifmx4/Makefile
 	  db2sqc/Makefile db2cli/Makefile db2esql/Makefile
 	  solid/Makefile net/Makefile

@@ -17,10 +17,10 @@
 #	MAKEFILE.am - Master automake defs
 #
 #	The Structured Query Scripting Language
-#	Copyright (C) 1992-2017 Marco Greco (marco@4glworks.com)
+#	Copyright (C) 1992-2021 Marco Greco (marco@4glworks.com)
 #
 #	Initial release: Feb 05
-#	Current release: Apr 17
+#	Current release: Aug 21
 #
 #	This library is free software; you can redistribute it and/or
 #	modify it under the terms of the GNU Lesser General Public
@@ -110,8 +110,8 @@ PRE_UNINSTALL = :
 POST_UNINSTALL = :
 subdir = .
 ACLOCAL_M4 = $(top_srcdir)/aclocal.m4
-am__aclocal_m4_deps = $(top_srcdir)/linkslist \
-	$(top_srcdir)/configure.ac
+am__aclocal_m4_deps = $(top_srcdir)/m4/ax_have_qt.m4 \
+	$(top_srcdir)/linkslist $(top_srcdir)/configure.ac
 am__configure_deps = $(am__aclocal_m4_deps) $(CONFIGURE_DEPENDENCIES) \
 	$(ACLOCAL_M4)
 DIST_COMMON = $(srcdir)/Makefile.am $(top_srcdir)/configure \
@@ -287,6 +287,9 @@ CC_SRC_EXTRA = @CC_SRC_EXTRA@
 CFLAGS = @CFLAGS@
 CPP = @CPP@
 CPPFLAGS = @CPPFLAGS@
+CXX = @CXX@
+CXXDEPMODE = @CXXDEPMODE@
+CXXFLAGS = @CXXFLAGS@
 CYGPATH_W = @CYGPATH_W@
 DB2BUILDDB = @DB2BUILDDB@
 DB2EXTRA = @DB2EXTRA@
@@ -343,6 +346,15 @@ PACKAGE_TARNAME = @PACKAGE_TARNAME@
 PACKAGE_URL = @PACKAGE_URL@
 PACKAGE_VERSION = @PACKAGE_VERSION@
 PATH_SEPARATOR = @PATH_SEPARATOR@
+QTDEMO = @QTDEMO@
+QT_CXXFLAGS = @QT_CXXFLAGS@
+QT_DIR = @QT_DIR@
+QT_LIBS = @QT_LIBS@
+QT_LRELEASE = @QT_LRELEASE@
+QT_LUPDATE = @QT_LUPDATE@
+QT_MOC = @QT_MOC@
+QT_RCC = @QT_RCC@
+QT_UIC = @QT_UIC@
 RANLIB = @RANLIB@
 READLINE_DEFINE = @READLINE_DEFINE@
 READLINE_LIBRARY = @READLINE_LIBRARY@
@@ -366,6 +378,11 @@ SQLLIBDIR = @SQLLIBDIR@
 SQ_freecurs = @SQ_freecurs@
 STRIP = @STRIP@
 VERSION = @VERSION@
+XMKMF = @XMKMF@
+X_CFLAGS = @X_CFLAGS@
+X_EXTRA_LIBS = @X_EXTRA_LIBS@
+X_LIBS = @X_LIBS@
+X_PRE_LIBS = @X_PRE_LIBS@
 YACC = @YACC@
 YACCCMP = @YACCCMP@
 abs_builddir = @abs_builddir@
@@ -373,6 +390,7 @@ abs_srcdir = @abs_srcdir@
 abs_top_builddir = @abs_top_builddir@
 abs_top_srcdir = @abs_top_srcdir@
 ac_ct_CC = @ac_ct_CC@
+ac_ct_CXX = @ac_ct_CXX@
 am__include = @am__include@
 am__leading_dot = @am__leading_dot@
 am__quote = @am__quote@
@@ -410,7 +428,7 @@ target_alias = @target_alias@
 top_build_prefix = @top_build_prefix@
 top_builddir = @top_builddir@
 top_srcdir = @top_srcdir@
-SUBDIRS = oslib sqsl cli $(I4GLUI) $(A4GLUI) \
+SUBDIRS = oslib sqsl cli $(QTDEMO) $(I4GLUI) $(A4GLUI) \
 	  $(DB2SO) $(IFMXSO) $(SOLIDSO) $(NETSO) $(CBSO) json \
 	  doc demo test tools tools/mvs
 

@@ -3,10 +3,10 @@
 
 	The 4glWorks application framework
 	The Structured Query Scripting Language
-	Copyright (C) 1992-2017 Marco Greco (marco@4glworks.com)
+	Copyright (C) 1992-2021 Marco Greco (marco@4glworks.com)
 
 	Initial release: Mar 00
-	Current release: Jan 17
+	Current release: Aug 21
 
 	This library is free software; you can redistribute it and/or
 	modify it under the terms of the GNU Lesser General Public
@@ -134,7 +134,7 @@ int sql_execcmd(parserstate_t *pstate)
 				     c->state>S_DISABLED))?
 				   (pstate->expstate): ES_DISABLED),
 			     pstate->phase1.input_char+1, &ip, &txt,
-			     &s, &e, &nlc);
+			     &s, &e, &nlc, pstate->execinfo);
 /*
 ** error in expansion? abort
 */
@@ -342,7 +342,7 @@ int sql_execcmd(parserstate_t *pstate)
 		{
 		  case RC_NROWS:
 		    if (pstate->flags & PF_VERBOSE)
-		    	sqsl_numrows(pstate->ca.sqlerrd2);
+		    	sqsl_numrows(pstate->ca.sqlerrd2, pstate->execinfo);
 		  case RC_NOTFOUND:
 		    lastcode=0;
 		  case 0:
@@ -445,6 +445,7 @@ int fgw_sqlexec(char *i_query, int i_size, int def_fd, int flags, int width,
     memset(&state, 0, sizeof(parserstate_t));
     memset(execinfo, 0, sizeof(execinfo_t));
     state.sighlr=fgw_sigint((void(*)(int)) rqx_sendbreak);
+    state.execinfo=execinfo;
     state.errorinfo=&execinfo->errorinfo;
     state.i_query=i_query;
     state.i_size=i_size;

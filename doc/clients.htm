@@ -8,9 +8,10 @@
 <BODY BGCOLOR=#FFFFFF>
 <H1><HR><CENTER><B>Structured Query Scripting Language: demo clients reference</CENTER></B><HR></H1>
 
-<P>The structured query scripting language distribution ships two demo clients,
-cli and curses, the first being command line oriented / readline library
-based, the other sporting a curses interface implemented x4gl.<BR>
+<P>The structured query scripting language distribution ships three demo clients,
+cli, curses and qtdemo, the first being command line oriented / readline library
+based, the other sporting a curses interface implemented x4gl, and the last
+a QT based GUI.<BR>
 
 Both the Informix and Aubit 4gl compilers can be used to build the demo curses
 client, and in fact if the configure script finds both, it will build both
@@ -20,7 +21,7 @@ whichever binary it finds in the installation directory and execute it.<BR>
 All the clients share a similar command line syntax that goes along the lines
 of</P>
 
-<PRE>[curses|cli] [-V |
+<PRE>[curses|cli|qtdemo] [-V |
 		  [-N] [-w &lt;width&gt;] [-H] [-D '&lt;variable&gt;=&lt;expression&gt;'...]
 		  [&lt;script name&gt;] [&lt;arg 2&gt; &lt;arg 3&gt;...]]</PRE>
 <P>where

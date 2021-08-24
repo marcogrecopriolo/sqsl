@@ -3,10 +3,10 @@
 
 	The 4glWorks application framework
 	The Structured Query Scripting Language
-	Copyright (C) 1992-2015 Marco Greco (marco@4glworks.com)
+	Copyright (C) 1992-2021 Marco Greco (marco@4glworks.com)
 
 	Initial release: May 05
-	Current release: Dec 15
+	Current release: Aug 21
 
 	This library is free software; you can redistribute it and/or
 	modify it under the terms of the GNU Lesser General Public
@@ -106,7 +106,7 @@ static int appendstring_ep(expbuf_t *ebp, char *c, int l);
 ** expansion facility
 */
 int fgw_sqlexplode(char *src, int srclen, fgw_loc_t *vars, int verbose, int expstate,
-		   int iidx, int *oidx, char **expptr, int *s, int *e, int *n)
+		   int iidx, int *oidx, char **expptr, int *s, int *e, int *n, execinfo_t *execinfo)
 {
     int qbase=0;
     char *cbase;
@@ -454,7 +454,7 @@ int fgw_sqlexplode(char *src, int srclen, fgw_loc_t *vars, int verbose, int exps
 			{
 			    if (rc=fgw_sqlexplode(src, len, vars, verbose,
 					      expstate, ip, &op, &eb,
-					      &s, &e, &n))
+					      &s, &e, &n, execinfo))
 				break;
 			    if (s>=0 && (l=e-s+1) &&
 				(rc=appendstring_ep(&expbuf, src+s-1, l)))
@@ -490,14 +490,14 @@ int fgw_sqlexplode(char *src, int srclen, fgw_loc_t *vars, int verbose, int exps
 		    if (rc=fgw_evalstr(t, &expbuf, vars, &d))
 			goto oopsadaisy;
 		    if (rc=sqsl_promptpasswd(tokid, opts, expbuf.ep_storage,
-					     expbuf.ep_storage, &l, verbose))
+					     expbuf.ep_storage, &l, verbose, execinfo))
 			goto oopsadaisy;
 		}
 		else
 		{
 		    int l=expbuf.ep_size;
 		    if (rc=sqsl_picklist(tokid,  opts, t, expbuf.ep_storage,
-					 &l, separator, quotes, verbose))
+					 &l, separator, quotes, verbose, execinfo))
 			goto oopsadaisy;
 		}
 /*

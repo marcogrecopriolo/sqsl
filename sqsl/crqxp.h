@@ -3,10 +3,10 @@
 
 	The 4glWorks application framework
 	The Structured Query Scripting Language
-	Copyright (C) 1992-2016 Marco Greco (marco@4glworks.com)
+	Copyright (C) 1992-2021 Marco Greco (marco@4glworks.com)
 
 	Initial release: Jan 97
-	Current release: Sep 16
+	Current release: Aug 21
 
 	This library is free software; you can redistribute it and/or
 	modify it under the terms of the GNU Lesser General Public
@@ -50,7 +50,7 @@ extern void rqx_freestatement(fgw_stmttype *st_p);
 extern void rqx_closestatement(fgw_stmttype *st_p);
 extern void rqx_zapstmt(int signature);
 extern void rqx_setcursor(fgw_stmttype *st_p, char *curs);
-extern void rqx_run(char *i_query, fgw_stmttype *st_p, int touch);
+extern void rqx_run(char *i_query, fgw_stmttype *st_p, int touch, execinfo_t *execinfo);
 extern void rqx_prepare(fgw_stmttype *st_p, char *query);
 extern void rqx_immediate(fgw_stmttype *st_p);
 extern void rqx_move(stmtstack_t *ss_1, stmtstack_t *ss_2, errorinfo_t *ei);

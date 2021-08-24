@@ -132,3 +132,6 @@
 ../sqsl/csqrc.h i4gl/csqrc.h
 ../sqsl/ctypc.h i4gl/ctypc.h
 ../sqsl/cxslc.h i4gl/cxslc.h
+../cli/args.c qtdemo/args.c
+../cli/csqmc.c qtdemo/csqmc.c
+../cli/csqmc.h qtdemo/csqmc.h

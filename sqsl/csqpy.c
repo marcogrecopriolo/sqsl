@@ -77,10 +77,10 @@
 
 	The 4glWorks application framework
 	The Structured Query Scripting Language
-	Copyright (C) 1992-2017 Marco Greco (marco@4glworks.com)
+	Copyright (C) 1992-2021 Marco Greco (marco@4glworks.com)
 
 	Initial release: Mar 00
-	Current release: Jun 17
+	Current release: Aug 21
 
 	This library is free software; you can redistribute it and/or
 	modify it under the terms of the GNU Lesser General Public
@@ -7041,7 +7041,7 @@ static int fillbuffer_sql()
 				 c->state>S_DISABLED))?
 			  (pstate->expstate): ES_DISABLED),
 			 pstate->phase1.input_char+1, &ip, &txt,
-			 &s, &e, &nlc);
+			 &s, &e, &nlc, pstate->execinfo);
 	yychar=pstate->svyychar;
 	yylval=*((YYSTYPE *) pstate->svyylval);
 /*

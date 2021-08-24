@@ -1,10 +1,10 @@
 #	MAKEFILE.am - Command Line Interface automake defs
 #
 #	The Structured Query Scripting Language
-#	Copyright (C) 1992-2017 Marco Greco (marco@4glworks.com)
+#	Copyright (C) 1992-2021 Marco Greco (marco@4glworks.com)
 #
 #	Initial release: Feb 05
-#	Current release: Jun 20
+#	Current release: Aug 21
 #
 #	This library is free software; you can redistribute it and/or
 #	modify it under the terms of the GNU Lesser General Public
@@ -32,5 +32,5 @@ COMPILE = $(CC) $(CC_EXTRA) -I$(ESQLINC) -I$(top_srcdir)/sqsl \
 CCLD = INFORMIXC="$(INFORMIXC) $(CC_LD_FLAG) $(CC_LD_STATIC) $(LD_EXTRA)"; \
 	export INFORMIXC; $(ESQL) $(ESQL_STATIC)
 bin_PROGRAMS = cli
-cli_SOURCES = cli.c csquc.c csqmc.h
+cli_SOURCES = cli.c args.c csqmc.c csqmc.h
 LDADD = $(top_srcdir)/sqsl/libsqsl.a $(OSLINK) $(READLINE_LIBRARY) $(REGEX_LIBRARY)

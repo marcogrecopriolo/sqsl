@@ -1,11 +1,11 @@
 /*
-	CSQUC.c  -  SQSL interpreter cli user interface
+	CSQMC.c  -  SQSL interpreter user messages
 
 	The Structured Query Scripting Language
-	Copyright (C) 1992-2016 Marco Greco (marco@4glworks.com)
+	Copyright (C) 1992-2021 Marco Greco (marco@4glworks.com)
 
 	Initial release: Mar 00
-	Current release: Sep 16
+	Current release: Aug 21
 
 	This library is free software; you can redistribute it and/or
 	modify it under the terms of the GNU Lesser General Public
@@ -118,14 +118,6 @@ static void hash_messages()
 }
 
 /*
-** display no of affected rows
-*/
-void sqsl_numrows(int rows)
-{
-    fprintf(stderr, "\nRows processed: %i\n\n", rows);
-}
-
-/*
 ** returns an error message text
 */
 void sqsl_getmessage(int e, char *b, int l)
@@ -141,30 +133,4 @@ void sqsl_getmessage(int e, char *b, int l)
 	strcpy(b, ms->msg);
     else
 	sprintf(b, "%i?", e);
-}
-
-/*
-**  confirm database operation
-*/
-int sqsl_asktouch(int touch)
-{
-    return 1;
-}
-
-/*
-**  expansion facility prompt/passwd functionality
-*/
-int sqsl_promptpasswd(int tok, int opts, char *txt,
-		      char *e_buf, int *len, int verbose)
-{
-    return RC_NWNDW;
-}
-
-/*
-** expansion facility pick list functionality
-*/
-int sqsl_picklist(int tok, int opts, char *txt, char *e_buf,
-		  int *len, char *sep, char *quotes, int verbose)
-{
-    return RC_NWNDW;
 }

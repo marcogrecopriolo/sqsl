@@ -3,10 +3,10 @@
 
 	The 4glWorks application framework
 	The Structured Query Scripting Language
-	Copyright (C) 1992-2020 Marco Greco (marco@4glworks.com)
+	Copyright (C) 1992-2021 Marco Greco (marco@4glworks.com)
 
 	Initial release: Mar 00
-	Current release: Jun 20
+	Current release: Aug 21
 
 	This library is free software; you can redistribute it and/or
 	modify it under the terms of the GNU Lesser General Public
@@ -530,7 +530,7 @@ int FGLGLOB(sql_explode)(int nargs)
     POPLOCATOR(vars)
     i_query=fgw_popquote();
     status=fgw_sqlexplode(i_query, strlen(i_query), vars, verbose, expstate, 
-			  iidx, &oidx, &exp, &s, &e, NULL);
+			  iidx, &oidx, &exp, &s, &e, NULL, NULL);
 
     if (i_query)
 	free(i_query);

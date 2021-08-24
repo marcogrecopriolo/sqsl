@@ -3,10 +3,10 @@
 
 	The 4glWorks application framework
 	The Structured Query Scripting Language
-	Copyright (C) 1992-2009 Marco Greco (marco@4glworks.com)
+	Copyright (C) 1992-2021 Marco Greco (marco@4glworks.com)
 
 	Initial release: Nov 98
-	Current release: Jan 09
+	Current release: Aug 21
 
 	This library is free software; you can redistribute it and/or
 	modify it under the terms of the GNU Lesser General Public
@@ -24,6 +24,7 @@
 */
 
 #ifndef CASCC_H
+#include "ccmpc.h"
 #include "ctypc.h"
 
 typedef struct
@@ -58,7 +59,7 @@ typedef struct
 
 #define fgw_text(arg) ((fgw_texttype *) arg->loc_user_env)
 
-extern void fgw_freetext(fgw_loc_t *textvar);
+EXTERNC void fgw_freetext(fgw_loc_t *textvar);
 extern void fgw_locatetext(fgw_loc_t *textvar);
 
 extern void fgw_recompindex(fgw_loc_t *textvar, int idx);

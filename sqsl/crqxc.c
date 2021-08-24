@@ -3,10 +3,10 @@
 
 	The 4glWorks application framework
 	The Structured Query Scripting Language
-	Copyright (C) 1992-2020 Marco Greco (marco@4glworks.com)
+	Copyright (C) 1992-2021 Marco Greco (marco@4glworks.com)
 
 	Initial release: Jan 97
-	Current release: Jun 20
+	Current release: Aug 21
 
 	This library is free software; you can redistribute it and/or
 	modify it under the terms of the GNU Lesser General Public
@@ -798,7 +798,7 @@ void rqx_setcursor(fgw_stmttype *st_p, char *curs)
 /*
 **  execute a statement
 */
-void rqx_run(char *i_query, fgw_stmttype *st_p, int touch)
+void rqx_run(char *i_query, fgw_stmttype *st_p, int touch, execinfo_t *execinfo)
 {
     if (st_p->curstate==ST_UNINITIALIZED)
     {
@@ -808,7 +808,7 @@ void rqx_run(char *i_query, fgw_stmttype *st_p, int touch)
     }
     if (st_p->curstate==ST_EXECUTABLE)
     {
-	if ((touch & K_noconf) || sqsl_asktouch(touch))
+	if ((touch & K_noconf) || sqsl_asktouch(touch, execinfo))
 	{
 	    rqx_immediate(st_p);
 	    if (!st_p->ca->sqlcode)

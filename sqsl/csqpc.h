@@ -3,10 +3,10 @@
 
 	The 4glWorks application framework
 	The Structured Query Scripting Language
-	Copyright (C) 1992-2016 Marco Greco (marco@4glworks.com)
+	Copyright (C) 1992-2021 Marco Greco (marco@4glworks.com)
 
 	Initial release: Mar 00
-	Current release: Sep 16
+	Current release: Aug 21
 
 	This library is free software; you can redistribute it and/or
 	modify it under the terms of the GNU Lesser General Public
@@ -47,6 +47,7 @@ typedef struct execinfo
 {
     errorinfo_t errorinfo;
     int verbose;
+    void *context;
 } execinfo_t;
 
 typedef struct phase1state
@@ -208,6 +209,8 @@ typedef struct parserstate
     fgw_fdesc *curr_fd;		/* same meaning as def_fd */
     fgw_loc_t *txtvar;
     void *sighlr;
+
+    execinfo_t *execinfo;	/* carries back information to the caller */
 } parserstate_t;
 
 /*
@@ -268,11 +271,11 @@ typedef struct parserstate
 /*
 ** sqsl parser
 */
-extern int fgw_sqlexec(char *i_query, int i_size, int def_fd, int flags, int width,
+EXTERNC int fgw_sqlexec(char *i_query, int i_size, int def_fd, int flags, int width,
 		       fgw_loc_t *vars, fgw_loc_t *txtvar, execinfo_t *execinfo);
-extern void fgw_sqlrelease(fgw_loc_t *vars);
-extern int fgw_evalassign(char *instr, fgw_loc_t *vars);
-extern void fgw_errmsg(int e, errorinfo_t *ei, char *b, int l);
+EXTERNC void fgw_sqlrelease(fgw_loc_t *vars);
+EXTERNC int fgw_evalassign(char *instr, fgw_loc_t *vars);
+EXTERNC void fgw_errmsg(int e, errorinfo_t *ei, char *b, int l);
 
 extern void sql_postcmd(parserstate_t *pstate);
 extern int sql_execcmd(parserstate_t *pstate);
@@ -285,13 +288,13 @@ extern void sql_parserrestore(parserstate_t *state);
 /*
 ** external user interaction
 */
-extern void sqsl_numrows(int rows);
-extern void sqsl_getmessage(int e, char *b, int l);
-extern int sqsl_asktouch(int touch);
-extern int sqsl_promptpasswd(int tok, int opts, char *txt,
-			     char *e_buf, int *len, int verbose);
-extern int sqsl_picklist(int tok, int opts, char *txt, char *e_buf,
-			 int *len, char *sep, char *quotes, int verbose);
+EXTERNC void sqsl_numrows(int rows, execinfo_t *execinfo);
+EXTERNC void sqsl_getmessage(int e, char *b, int l);
+EXTERNC int sqsl_asktouch(int touch, execinfo_t *execinfo);
+EXTERNC int sqsl_promptpasswd(int tok, int opts, char *txt,
+			     char *e_buf, int *len, int verbose, execinfo_t *execinfo);
+EXTERNC int sqsl_picklist(int tok, int opts, char *txt, char *e_buf,
+			 int *len, char *sep, char *quotes, int verbose, execinfo_t *execinfo);
 
 #define CSQPC_H
 #endif

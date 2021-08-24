@@ -3,10 +3,10 @@
 
 	The 4glWorks application framework
 	The Structured Query Scripting Language
-	Copyright (C) 1992-2020 Marco Greco (marco@4glworks.com)
+	Copyright (C) 1992-2021 Marco Greco (marco@4glworks.com)
 
 	Initial release: Oct 02
-	Current release: Jun 20
+	Current release: Aug 21
 
 	This library is free software; you can redistribute it and/or
 	modify it under the terms of the GNU Lesser General Public
@@ -35,7 +35,7 @@
 /* 2 is for longs, which breaks 64 bit builds */
 /* #define popint(x) (void) A4GL_pop_var2(x, 7, 0) */
 /* #define popdate(x) (void) A4GL_pop_var2(x, 7, 0) */
-/* #define popdub(x) (void) A4GL_pop_var2(x, 3, 0) */
+#define popdub(x) (void) A4GL_pop_var2(x, 3, 0)
 /* #define popquote(x, s) (void) A4GL_pop_var2(x, 0, (s)-1) */
 /* #define popdec	*/
 /* #define popdtime	*/
@@ -44,7 +44,7 @@
 /* #define retint A4GL_push_long */
 /* #define pushint A4GL_push_long */
 /* #define retlong A4GL_push_long */
-/* #define retdate A4GL_push_date */
+#define retdate A4GL_push_date
 /* #define retdub(x) A4GL_push_double(*(x)) */
 /* #define retquote A4GL_push_char */
 /* #define pushquote(x, l) A4GL_push_char(x) */
@@ -116,5 +116,10 @@ void fgw_restorelocator(fgw_loc_t *loc, fglbyte *blob);
 #define unsigned
 #endif
 
+#ifdef __cplusplus
+#define EXTERNC extern "C"
+#else
+#define EXTERNC extern
+#endif 
 #define CCMPC_H
 #endif

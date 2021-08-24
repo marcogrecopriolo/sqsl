@@ -3,10 +3,10 @@
 
 	The 4glWorks application framework
 	The Structured Query Scripting Language
-	Copyright (C) 1992-2017 Marco Greco (marco@4glworks.com)
+	Copyright (C) 1992-2021 Marco Greco (marco@4glworks.com)
 
 	Initial release: Jan 97
-	Current release: Jul 17
+	Current release: Aug 21
 
 	This library is free software; you can redistribute it and/or
 	modify it under the terms of the GNU Lesser General Public
@@ -70,7 +70,7 @@ int rsx_sqlrun(char *stmt)
     if (rxx_runnable() && (status=rxx_execute(NULL, NULL)))
 	return -1;
 
-    rqx_run(stmt, pstate->ssp->stmt, pstate->touch);
+    rqx_run(stmt, pstate->ssp->stmt, pstate->touch, pstate->execinfo);
     status=pstate->ssp->stmt->ca->sqlcode;
     rqx_freestatement(pstate->ssp->stmt);
     pstate->ssp->stmt=NULL;
@@ -1369,7 +1369,7 @@ int rsx_nonredirected(pcode_t *fmt)
         if (!pstate->ssp->stmt->intovars.pcodehead &&
             (pstate->ssp->stmt->options & SO_NOFMT))
         {
-            rqx_run("", pstate->ssp->stmt, pstate->touch);
+            rqx_run("", pstate->ssp->stmt, pstate->touch, pstate->execinfo);
             status=pstate->ssp->stmt->ca->sqlcode;
         }
         else
@@ -1473,7 +1473,7 @@ int rsx_redirected(pcode_t *fmt)
 		status=RC_NOSTR;
 		goto bad;
 	    }
-            if (sqsl_asktouch(pstate->touch))
+            if (sqsl_asktouch(pstate->touch, pstate->execinfo))
                 rqx_move(&pstate->stmtstack[0], &pstate->stmtstack[1],
                          pstate->errorinfo);
             r=pstate->ca.sqlcode;
