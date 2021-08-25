@@ -563,7 +563,7 @@ void codeEditor::highlightCurrentLine() {
     if (!isReadOnly()) {
         QTextEdit::ExtraSelection selection;
 
-        selection.format.setBackground(COLOUR_BKG);
+        selection.format.setBackground(COLOUR_HILITE);
         selection.format.setProperty(QTextFormat::FullWidthSelection, true);
         selection.cursor = textCursor();
         selection.cursor.clearSelection();
