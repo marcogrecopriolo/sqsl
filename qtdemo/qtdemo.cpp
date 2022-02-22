@@ -184,9 +184,10 @@ void mainWindow::openFile(const QString& filepath) {
     QFile file(filepath);
 
     if (file.open(QIODevice::ReadOnly)) {
-        codeEditor *curEditor = (codeEditor *)tabs->currentWidget();
+        container *c = (container *)tabs->currentWidget();
+        codeEditor *curEditor = (codeEditor *)c;
 
-        if (curEditor->document()->isEmpty() && curEditor->isUntitled())
+        if (c->isEditor() && curEditor->document()->isEmpty() && curEditor->isUntitled())
             delete tabs->widget(tabs->currentIndex());
 
         codeEditor* editor = new codeEditor(true);
@@ -205,14 +206,25 @@ void mainWindow::openFile(const QString& filepath) {
 }
 
 bool mainWindow::saveFile() {
-    codeEditor *editor = (codeEditor *) tabs->currentWidget();
-    if (editor->isUntitled()) {
+    container *c = (container *)tabs->currentWidget();
+    codeEditor *curEditor = (codeEditor *)c;
+
+    if (c->isEditor() && curEditor->isUntitled()) {
         return saveFileAs();
     }
     QString filepath = tabs->tabText(tabs->currentIndex());
     QFile file(filepath);
     if (file.open(QIODevice::WriteOnly)) {
-        file.write(((codeEditor *) tabs->currentWidget())->document()->toPlainText().toUtf8());
+	if (c->isEditor())
+	    file.write(curEditor->document()->toPlainText().toUtf8());
+#if RESULTSTAB == TextEdit
+	else {
+	    if (c->isHtml())
+		file.write(((QTextEdit *)c)->toHtml().toUtf8());
+	    else
+		file.write(((QTextEdit *)c)->toPlainText().toUtf8());
+	}
+#endif
         file.close();
         setTabToolTip();
     } else {
@@ -225,7 +237,8 @@ bool mainWindow::saveFile() {
 bool mainWindow::saveFileAs() {
     QString filename = tabs->tabText(tabs->currentIndex());
     QString filepath = QFileDialog::getSaveFileName(this, "Save " + filename, filename);
-    codeEditor *editor = (codeEditor *) tabs->currentWidget();
+    container *c = (container *)tabs->currentWidget();
+    codeEditor *curEditor = (codeEditor *)c;
 
     if (filepath.isEmpty())
         return false;
@@ -233,10 +246,21 @@ bool mainWindow::saveFileAs() {
         filepath.append(".sqsl");
     QFile file(filepath);
     if (file.open(QIODevice::WriteOnly)) {
-        file.write(editor->document()->toPlainText().toUtf8());
-        file.close();
-	editor->setUntitled(false);
-	editor->setResults("");
+	if (c->isEditor()) {
+	    file.write(curEditor->document()->toPlainText().toUtf8());
+	    file.close();
+	    curEditor->setUntitled(false);
+	    curEditor->setResults("");
+	}
+#if RESULTSTAB == TextEdit
+	else {
+	    if (c->isHtml())
+		file.write(((QTextEdit *)c)->toHtml().toUtf8());
+	    else
+		file.write(((QTextEdit *)c)->toPlainText().toUtf8());
+	    file.close();
+	}
+#endif
     } else {
         (new QErrorMessage(this))->showMessage("Cannot save file!");
         return false;
@@ -250,19 +274,35 @@ bool mainWindow::saveFileAs() {
 bool mainWindow::saveAllFiles() {
     int current_index = tabs->currentIndex();
     for (int i = 0; i < tabCount(); ++i) {
-        codeEditor *editor = (codeEditor *) tabs->widget(i);
+        container *c = (container *)tabs->widget(i);
         tabs->setCurrentIndex(i);
-        if (editor->document()->isModified() && !saveFile())
-	    return false;
+
+        if (c->isEditor()) {
+	    if (((codeEditor *)c)->document()->isModified() && !saveFile())
+		return false;
+	 }
+#if RESULTSTAB == TextEdit
+	else {
+	    if (((QTextEdit *)c)->document()->isModified() && !saveFile())
+		return false;
+	}
+#endif
     }
     tabs->setCurrentIndex(current_index);
     return true;
 }
 
 void mainWindow::closeTab(int idx) {
-    codeEditor *editor = (codeEditor *) tabs->widget(idx);
+    container *c = (container *)tabs->widget(idx);
+    bool check;
 
-    if (editor->document()->isModified()) {
+    if (c->isEditor())
+	check = ((codeEditor *)c)->document()->isModified();
+#if RESULTSTAB == TextEdit
+    else 
+	check = ((QTextEdit *)c)->document()->isModified();
+#endif
+    if (check) {
         QMessageBox::StandardButton reply;
         reply = QMessageBox::question(this, "Saving changes", "Save changes before closing?",
                                       QMessageBox::Yes|QMessageBox::No);
@@ -278,11 +318,12 @@ void mainWindow::closeTab(int idx) {
 
 void mainWindow::switchTab(int idx) {
     if (idx >= 0) {
-	codeEditor *editor = (codeEditor *) tabs->widget(idx);
-	bool readOnly = editor->isReadOnly();
+	container *c = (container *)tabs->widget(idx);
+	codeEditor *editor = (codeEditor *)c;
+	bool runEnabled = c->isEditor() && !editor->isReadOnly();
 
-	runMenuAction->setEnabled(!readOnly);
-	runBarAction->setEnabled(!readOnly);
+	runMenuAction->setEnabled(runEnabled);
+	runBarAction->setEnabled(runEnabled);
     }
 }
 
@@ -293,11 +334,22 @@ void mainWindow::closeFile() {
 bool mainWindow::closeAllFiles() {
     bool checker = false;
     for (int i = 0; i < tabCount(); ++i) { // QTabWidget guarantees the consistency of indices?
-	codeEditor *editor = (codeEditor *) tabs->widget(i);
-        if (editor->document()->isModified()) {
-            checker = true;
-            break;
+        container *c = (container *)tabs->widget(i);
+
+        if (c->isEditor()) {
+	    if (((codeEditor *)c)->document()->isModified()) {
+		checker = true;
+		break;
+	    }
         }
+#if RESULTSTAB == TextEdit
+	else {
+	    if (((QTextEdit *)c)->document()->isModified()) {
+		checker = true;
+		break;
+	    }
+	}
+#endif
     }
     if (checker) {
         QMessageBox::StandardButton reply = QMessageBox::question(
@@ -327,7 +379,12 @@ void mainWindow::closeEvent(QCloseEvent *event) {
 // sqsl execution slots
 
 void mainWindow::execute() {
-    codeEditor *newTextEdit = NULL;
+    // for completeness
+    container *c = (container *)tabs->currentWidget();
+    if (!c->isEditor())
+	return;
+
+    container *newResults = NULL;
     runningTab = tabs->widget(tabs->currentIndex());
     codeEditor *editor = (codeEditor *) runningTab;
     
@@ -335,25 +392,34 @@ void mainWindow::execute() {
     if (editor->getResults() != "") {
 	for (int i = 0; i < tabCount(); ++i)
 	    if (tabs->tabText(i) == editor->getResults()) {
-		newTextEdit = (codeEditor *) tabs->widget(i);
+		newResults = (container *) tabs->widget(i);
 		break;
 	    }
     }
 
-    if (newTextEdit == NULL) {
+    if (newResults == NULL) {
 	int index;
 	QString results;
+#if RESULTSTAB == TextEdit
+	QTextEdit *newBrowser;
 
-	newTextEdit = new codeEditor(false);
-	newTextEdit->setReadOnly(true);
+	newBrowser = new QTextEdit();
+	newBrowser->setReadOnly(true);
+	resultsTab = newBrowser;
+#elif RESULTSTAB == PlainTextEdit
+	codeEditor *newBrowser;
+
+	newBrowser = new codeEditor(false);
+        newBrowser->setReadOnly(true);
+	resultsTab = newBrowser;
+#endif
 	results = "results for " + tabs->tabBar()->tabText(tabs->currentIndex());
-       	index = addTab(newTextEdit, results);
+       	index = addTab(newBrowser, results);
 	tabs->setCurrentIndex(index);
 	editor->setResults(results);
-	resultsTab = newTextEdit;
     } else {
-	resultsTab = newTextEdit;
-	tabs->setCurrentIndex(tabs->indexOf(newTextEdit));
+	resultsTab = newResults;
+	tabs->setCurrentIndex(tabs->indexOf(newResults));
     }
     executionThread = new runner(&env, editor->document());
     connect(executionThread, SIGNAL(complete()), this, SLOT(completeExecution()));
@@ -372,9 +438,19 @@ void mainWindow::runnerId(void *id) {
 }
 
 void mainWindow::completeExecution() {
-    resultsTab->clear();
-    if (env.txtvar.loc_size > 0)
-	resultsTab->appendPlainText(QString::fromLocal8Bit(env.txtvar.loc_buffer, env.txtvar.loc_size));
+    if (((container *) resultsTab)->isEditor()) {
+	((codeEditor *)resultsTab)->clear();
+	if (env.txtvar.loc_size > 0)
+	    ((codeEditor *)resultsTab)->appendPlainText(QString::fromLocal8Bit(env.txtvar.loc_buffer, env.txtvar.loc_size));
+    }
+#if RESULTSTAB == TextEdit
+    else {
+	((QTextEdit *)resultsTab)->clear();
+	((QTextEdit *)resultsTab)->setProperty("HTML", false);
+	if (env.txtvar.loc_size > 0)
+	    ((QTextEdit *)resultsTab)->append(QString::fromLocal8Bit(env.txtvar.loc_buffer, env.txtvar.loc_size));
+    }
+#endif
     fgw_freetext(&env.txtvar);
     cancelRunning();
     runningTab = NULL;
@@ -406,7 +482,7 @@ void mainWindow::showStatus(QString s) {
 }
 
 void mainWindow::setRunning() {
-    codeEditor *editor = (codeEditor *) tabs->widget(tabs->currentIndex());
+    codeEditor *editor = (codeEditor *) tabs->currentWidget();
     tabs->tabBar()->tabButton(tabs->currentIndex(), QTabBar::RightSide)->setEnabled(false);
     editor->setReadOnly(true);
     runMenuAction->setVisible(false);
@@ -417,11 +493,16 @@ void mainWindow::setRunning() {
 
 void mainWindow::cancelRunning() {
     if (runningTab != NULL) {
-	codeEditor *editor = (codeEditor *) runningTab;
 	int index = tabs->indexOf(runningTab);
 	if (index >= 0) 
-		tabs->tabBar()->tabButton(index, QTabBar::RightSide)->setEnabled(true);
-	editor->setReadOnly(false);
+	    tabs->tabBar()->tabButton(index, QTabBar::RightSide)->setEnabled(true);
+
+	// for completeness
+	container *c = (container *) runningTab;
+	if (c->isEditor()) {
+	    codeEditor *editor = (codeEditor *) runningTab;
+	    editor->setReadOnly(false);
+	}
     }
     runMenuAction->setVisible(true);
     runBarAction->setVisible(true);
@@ -432,31 +513,69 @@ void mainWindow::cancelRunning() {
 // edit menu slots
 
 void mainWindow::slotCopy() {
-    ((codeEditor *) tabs->currentWidget())->copy();
+    container *c = (container *)tabs->currentWidget();
+    if (c->isEditor())
+	((codeEditor *) tabs->currentWidget())->copy();
+#if RESULTSTAB == TextEdit
+    else
+	((QTextEdit *) tabs->currentWidget())->copy();
+#endif
 }
 
 void mainWindow::slotCut() {
-    ((codeEditor *) tabs->currentWidget())->cut();
+    container *c = (container *)tabs->currentWidget();
+    if (c->isEditor())
+	((codeEditor *) tabs->currentWidget())->cut();
+#if RESULTSTAB == TextEdit
+    else
+	((QTextEdit *) tabs->currentWidget())->cut();
+#endif
 }
 
 void mainWindow::slotSelectAll() {
-    ((codeEditor *) tabs->currentWidget())->selectAll();
+    container *c = (container *)tabs->currentWidget();
+    if (c->isEditor())
+	((codeEditor *) tabs->currentWidget())->selectAll();
+#if RESULTSTAB == TextEdit
+    else
+	((QTextEdit *) tabs->currentWidget())->selectAll();
+#endif
 }
 
 void mainWindow::slotPaste() {
-    ((codeEditor *) tabs->currentWidget())->paste();
+    container *c = (container *)tabs->currentWidget();
+    if (c->isEditor())
+	((codeEditor *) tabs->currentWidget())->paste();
+#if RESULTSTAB == TextEdit
+    else
+	((QTextEdit *) tabs->currentWidget())->paste();
+#endif
 }
 
 void mainWindow::slotUndo() {
-    ((codeEditor *) tabs->currentWidget())->undo();
+    container *c = (container *)tabs->currentWidget();
+    if (c->isEditor())
+	((codeEditor *) tabs->currentWidget())->undo();
+#if RESULTSTAB == TextEdit
+    else
+	((QTextEdit *) tabs->currentWidget())->undo();
+#endif
 }
 
 // editor tab state change
 
 void mainWindow::setTabToolTip() {
+    bool changed;
     QString tip = tabs->tabBar()->tabText(tabs->currentIndex());
-    codeEditor *editor = (codeEditor *) tabs->currentWidget();
-    if (editor->document()->isModified())
+    container *c = (container *) tabs->currentWidget();
+    
+    if (c->isEditor())
+	changed = ((codeEditor *) c)->document()->isModified();
+#if RESULTSTAB == TextEdit
+    else
+	changed = ((QTextEdit *) c)->document()->isModified();
+#endif
+    if (changed)
 	tip.append(" - changed");
     else
 	tip.append(" - not changed");
@@ -517,6 +636,7 @@ int sqsl_picklist(int tok, int opts, char *txt, char *e_buf, int *len, char *sep
 codeEditor::codeEditor(bool useLines, QWidget *parent) : QPlainTextEdit(parent) {
     untitled = true;
     this->useLines = useLines;
+    setProperty("EDITOR", true);
     QPalette p = palette();
     p.setColor(QPalette::Base, COLOUR_BKG);
     p.setColor(QPalette::Text, COLOUR_FONT);

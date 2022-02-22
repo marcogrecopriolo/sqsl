@@ -41,6 +41,8 @@
 
 #include "csqpc.h"
 
+#define RESULTSTAB TextEdit	// TextEdit or PlainTextEdit
+
 class codeEditor: public QPlainTextEdit {
     Q_OBJECT
 
@@ -83,6 +85,16 @@ protected:
 
 private:
     codeEditor *editor;
+};
+
+class container: public QWidget {
+public:
+    bool isEditor() {
+        return property("EDITOR").toBool();
+    }
+    bool isHtml() {
+        return property("HTML").toBool();
+    }
 };
 
 typedef struct runnerenv {
@@ -132,7 +144,7 @@ private:
     QAction *stopBarAction;
     runner *executionThread;
     pthread_t id;
-    codeEditor *resultsTab;
+    QWidget *resultsTab;
     QWidget *runningTab;
     runnerenv env;
 
